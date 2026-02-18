@@ -1,6 +1,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include "glm/fwd.hpp"
 #include <glad/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -34,6 +35,9 @@ public:
   float MouseSensitivity;
   float Zoom;
 
+  float SceneWidth;
+  float SceneHeight;
+
   // constructor with vectors
   Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f),
          glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW,
@@ -59,8 +63,13 @@ public:
   }
 
   // returns the view matrix calculated using Euler Angles and the LookAt Matrix
-  glm::mat4 GetViewMatrix() {
+  glm::mat4 GetViewMatrix() const {
     return glm::lookAt(Position, Position + Front, Up);
+  }
+
+  glm::mat4 GetProjectionMatrix() const {
+    return glm::perspective(glm::radians(Zoom), SceneWidth / SceneHeight, 0.1f,
+                            100.0f);
   }
 
   // processes input received from any keyboard-like input system. Accepts input
@@ -108,6 +117,11 @@ public:
       Zoom = 1.0f;
     if (Zoom > 45.0f)
       Zoom = 45.0f;
+  }
+
+  void UpdateSceneSize(float scene_width, float scene_height) {
+    SceneWidth = scene_width;
+    SceneHeight = scene_height;
   }
 
 private:

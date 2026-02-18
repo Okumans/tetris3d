@@ -1,9 +1,9 @@
 #pragma once
 
 #include "camera.h"
+#include "game/tetris_manager.hpp"
 #include "glad/gl.h"
-#include "glm/fwd.hpp"
-#include "ui_manager.h"
+#include "ui/ui_manager.hpp"
 #include <GLFW/glfw3.h>
 
 #ifndef SHADER_PATH
@@ -36,6 +36,7 @@ private:
   GLFWwindow *m_window;
   Camera m_camera;
   AppState m_appState;
+  TetrisManager m_game;
   UIManager m_uiManager;
 
   // VAOs

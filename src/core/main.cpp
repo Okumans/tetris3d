@@ -10,7 +10,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "app.h"
+#include "app.hpp"
 
 #ifndef ASSETS_PATH
 #define ASSETS_PATH "./assets"

@@ -1,10 +1,10 @@
-#include "ui_manager.h"
+#include "ui_manager.hpp"
 
 #include "glad/gl.h"
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "geometry.h"
-#include "shader_manager.h"
+#include "core/geometry.hpp"
+#include "core/shader_manager.hpp"
 
 // UIElement
 UIElement::UIElement(std::string name, UIHitbox box, glm::vec3 color,

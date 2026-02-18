@@ -1,19 +1,19 @@
-#include "app.h"
+#include "core/app.hpp"
 #include "GLFW/glfw3.h"
-#include "geometry.h"
+#include "core/geometry.hpp"
+#include "core/shader_manager.hpp"
 #include "glad/gl.h"
-#include "shader_manager.h"
-#include "ui_manager.h"
+#include "ui/ui_manager.hpp"
 #include <print>
 
 void App::render(double delta_time) {
   _handleProcessInput(delta_time);
+  m_game.render(m_camera, delta_time);
   m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
 }
 
 App::App(GLFWwindow *window)
-    : m_window(window), m_camera(glm::vec3(0.0f, 0.0f, 3.0f)) {
-  glEnable(GL_DEPTH_TEST);
+    : m_window(window), m_camera(glm::vec3(0.0f, 15.0f, 25.0f)) {
 
   glfwSetWindowUserPointer(m_window, (void *)this);
 
@@ -25,6 +25,8 @@ App::App(GLFWwindow *window)
   _setupShaders();
   _setupBuffers();
   _setupUIElements();
+
+  m_camera.UpdateSceneSize(800, 600);
 }
 
 App::~App() { glDeleteVertexArrays(1, &m_tetrominoVAO); }
@@ -112,6 +114,7 @@ void App::_handleFramebufferSizeCallback(int width, int height) {
   glViewport(0, 0, width, height);
   m_appState.windowWidth = width;
   m_appState.windowHeight = height;
+  m_camera.UpdateSceneSize(width, height);
 }
 
 // GLFW static callbacks adapters
