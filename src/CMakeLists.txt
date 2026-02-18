@@ -1,0 +1,54 @@
+#-----------------------------------------------------------------------------#
+# define the asset path in c++
+set(ASSETS_DIR ${PROJECT_SOURCE_DIR}/assets)
+set(ASSETS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/assets)
+file(COPY ${ASSETS_DIR} DESTINATION ${CMAKE_INSTALL_PREFIX})
+# Additionally, install assets for QtCreator and CLion IDE.
+file(COPY ${ASSETS_DIR} DESTINATION ${CMAKE_BINARY_DIR})
+
+#-----------------------------------------------------------------------------#
+# list of all source files
+set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
+set(INC_DIR ${PROJECT_SOURCE_DIR}/include)
+file(GLOB_RECURSE SRC_HEADER_FILES CONFIGURE_DEPENDS "${SRC_DIR}/*.h")
+file(GLOB_RECURSE INC_HEADER_FILES CONFIGURE_DEPENDS "${INC_DIR}/*.h")
+file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${SRC_DIR}/*.cpp")
+file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS "${ASSETS_DIR}/shaders/*.glsl")
+set(ALL_HEADERS ${SRC_HEADERS} ${INC_HEADERS})
+
+#-----------------------------------------------------------------------------#
+# list all files that will either be used for compilation or that should show
+# up in the ide of your choice
+add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${ALL_HEADERS} ${SHADER_FILES})
+GroupSourcesByFolder(${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${SRC_DIR}
+    ${INC_DIR}
+)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23) # use c++23
+
+file(RELATIVE_PATH
+  ASSETS_LOCATION
+  ${CMAKE_INSTALL_PREFIX}/bin
+  ${ASSETS_INSTALL_DIR}
+)
+target_compile_definitions(${PROJECT_NAME} PRIVATE ASSETS_PATH="${ASSETS_LOCATION}")
+
+if(MSVC)
+  set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_COMMAND ${CMAKE_INSTALL_PREFIX}/bin/$<TARGET_FILE_NAME:${CMAKE_PROJECT_NAME}>)
+  set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin)
+endif()
+
+# specify libraries to link with after compilation
+target_link_libraries(${CMAKE_PROJECT_NAME}
+  PRIVATE
+  glfw
+  ${GLAD_LIBRARY}
+  m
+  glm)
+
+install(TARGETS ${CMAKE_PROJECT_NAME}
+EXPORT ${CMAKE_PROJECT_NAME}-targets
+RUNTIME DESTINATION bin
+ARCHIVE DESTINATION lib
+LIBRARY DESTINATION lib)
