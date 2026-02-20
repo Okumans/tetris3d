@@ -5,9 +5,9 @@
 #include "game/tetromino.hpp"
 #include "glad/gl.h"
 #include "glm/ext/matrix_transform.hpp"
+#include "glm/fwd.hpp"
 #include "shader.h"
 
-#include <print>
 #include <random>
 
 TetrisManager::TetrisManager() : m_activePiece(_get_random_piece()) {
@@ -26,26 +26,31 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   shader.setMat4("u_view", camera.GetViewMatrix());
   shader.setMat4("u_projection", camera.GetProjectionMatrix());
 
+  shader.setMat4("u_model", glm::mat4(1.0f));
+  shader.setVec3("u_color", glm::vec3(0.5f)); // Grey outline
+  m_gridBox.render(camera.GetViewMatrix(), camera.GetProjectionMatrix());
+
+  glBindVertexArray(m_vao);
+
   // Draw On Grid Piece
   for (int y = 0; y < SPACE_HEIGHT; ++y) {
     for (int x = 0; x < SPACE_WIDTH; ++x) {
       for (int z = 0; z < SPACE_DEPTH; ++z) {
         const auto &cell = m_space.at(x, y, z);
         if (cell.isOccupied()) {
-          std::println("cell at ({}, {}, {})", x, y, z);
-          glm::vec3 worldPos = m_space.gridToWorld(x, y, z);
-          _drawCell(worldPos.x, worldPos.y, worldPos.z, shader);
+          glm::vec3 world_pos = m_space.gridToWorld(x, y, z);
+          glm::vec3 color = TetrominoFactory::getColor(cell.type);
+          _drawCell(world_pos, color, shader);
         }
       }
     }
   }
 
   // Draw Active Piece
+  glm::vec3 active_piece_color = m_activePiece.getColor();
   for (const auto &gridPos : m_activePiece.getGlobalPositions()) {
-    glm::vec3 worldPos = m_space.gridToWorld(gridPos.x, gridPos.y, gridPos.z);
-    std::println("active cell at ({}, {}, {})", gridPos.x, gridPos.y,
-                 gridPos.z);
-    _drawCell(worldPos.x, worldPos.y, worldPos.z, shader);
+    glm::vec3 world_pos = m_space.gridToWorld(gridPos.x, gridPos.y, gridPos.z);
+    _drawCell(world_pos, active_piece_color, shader);
   }
 }
 
@@ -152,14 +157,11 @@ void TetrisManager::_setupBuffers() {
   glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(TetrominoVertex));
 }
 
-void TetrisManager::_drawCell(int x, int y, int z, const Shader &shader) {
-  const GridCell &cell = m_space.at(x, y, z);
-
-  glm::vec3 worldPos = m_space.gridToWorld(x, y, z);
-
-  glm::mat4 model = glm::translate(glm::mat4(1.0f), worldPos);
+void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec3 color,
+                              const Shader &shader) {
+  glm::mat4 model = glm::translate(glm::mat4(1.0f), world_pos);
   shader.setMat4("u_model", model);
-  shader.setVec3("u_color", TetrominoFactory::getColor(cell.type));
+  shader.setVec3("u_color", color);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }

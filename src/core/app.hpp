@@ -34,7 +34,11 @@ struct AppState {
 class App {
 private:
   GLFWwindow *m_window;
+
   Camera m_camera;
+  float m_transitionSpeed = 5.0f;
+  float m_rotationSpeed = 60.0f;
+
   AppState m_appState;
   TetrisManager m_game;
   UIManager m_uiManager;
@@ -46,6 +50,7 @@ public:
   App(GLFWwindow *window);
   ~App();
   void render(double delta_time);
+  void setCameraPreset(std::string_view preset);
 
 private:
   // GLFW static callbacks adapters
@@ -65,6 +70,5 @@ private:
   void _handleFramebufferSizeCallback(int width, int height);
 
   void _setupShaders();
-  void _setupBuffers();
   void _setupUIElements();
 };

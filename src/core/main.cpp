@@ -35,7 +35,7 @@ GLFWwindow *initialize_window(int width, int height, const char *title) {
 #ifdef __APPLE__
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
-
+  glfwWindowHint(GLFW_DEPTH_BITS, 24); // Add this before glfwCreateWindow
   GLFWwindow *window = glfwCreateWindow(width, height, title, NULL, NULL);
   if (!window) {
     fprintf(stderr, "Failed to create GLFW window\n");
@@ -62,7 +62,9 @@ int main(int argc, char *argv[]) {
     App application(window);
 
     while (!glfwWindowShouldClose(window)) {
-      double delta_frame_time = glfwGetTime() - last_frame_time;
+      double current_frame_time = glfwGetTime();
+      double delta_frame_time = current_frame_time - last_frame_time;
+      last_frame_time = current_frame_time;
 
       process_input(window); // global event (like closing the window)
 

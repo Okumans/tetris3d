@@ -5,6 +5,7 @@
 #include "game/tetromino.hpp"
 #include "glad/gl.h"
 #include "shader.h"
+#include "ui/grid_box.hpp"
 #include <deque>
 
 class TetrisManager {
@@ -14,9 +15,10 @@ public:
   static const size_t SPACE_DEPTH = 10;
 
 private:
-  TetrisSpace<SPACE_WIDTH, SPACE_HEIGHT, SPACE_WIDTH> m_space;
+  TetrisSpace<SPACE_WIDTH, SPACE_HEIGHT, SPACE_DEPTH> m_space;
   Tetromino m_activePiece;
   std::deque<Tetromino> m_nextPieces;
+  GridBox m_gridBox{SPACE_WIDTH, SPACE_HEIGHT, SPACE_DEPTH};
 
   bool swapWithNextPieceQuota = true;
 
@@ -43,5 +45,5 @@ private:
 
   static Tetromino _get_random_piece();
   void _setupBuffers();
-  void _drawCell(int x, int y, int z, const Shader &shader);
+  void _drawCell(glm::vec3 world_pos, glm::vec3 color, const Shader &shader);
 };

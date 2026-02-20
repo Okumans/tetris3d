@@ -1,6 +1,5 @@
 #include "core/app.hpp"
 #include "GLFW/glfw3.h"
-#include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
 #include "glad/gl.h"
 #include "ui/ui_manager.hpp"
@@ -13,7 +12,7 @@ void App::render(double delta_time) {
 }
 
 App::App(GLFWwindow *window)
-    : m_window(window), m_camera(glm::vec3(0.0f, 15.0f, 25.0f)) {
+    : m_window(window), m_camera(glm::vec3(0.0f, 10.0f, 30.0f)) {
 
   glfwSetWindowUserPointer(m_window, (void *)this);
 
@@ -23,10 +22,11 @@ App::App(GLFWwindow *window)
   glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
 
   _setupShaders();
-  _setupBuffers();
   _setupUIElements();
 
-  m_camera.UpdateSceneSize(800, 600);
+  int width, height;
+  glfwGetWindowSize(m_window, &width, &height);
+  m_camera.UpdateSceneSize(width, height);
 }
 
 App::~App() { glDeleteVertexArrays(1, &m_tetrominoVAO); }
@@ -38,31 +38,24 @@ void App::_setupShaders() {
                             TETROMINO_FRAGMENT_SHADER_PATH);
 }
 
-void App::_setupBuffers() {
-  // Setup Tertromino VAO
-  glCreateVertexArrays(1, &m_tetrominoVAO);
-
-  // index 0: vec3; position attribute
-  glEnableVertexArrayAttrib(m_tetrominoVAO, 0);
-  glVertexArrayAttribFormat(m_tetrominoVAO, 0, 3, GL_FLOAT, GL_FALSE,
-                            offsetof(TetrominoVertex, pos));
-  glVertexArrayAttribBinding(m_tetrominoVAO, 0, 0);
-
-  // index 1: vec3; normal attribute
-  glEnableVertexArrayAttrib(m_tetrominoVAO, 1);
-  glVertexArrayAttribFormat(m_tetrominoVAO, 1, 3, GL_FLOAT, GL_FALSE,
-                            offsetof(TetrominoVertex, normal));
-  glVertexArrayAttribBinding(m_tetrominoVAO, 1, 0);
-
-  // index 2: vec2; uv attribute
-  glEnableVertexArrayAttrib(m_tetrominoVAO, 2);
-  glVertexArrayAttribFormat(m_tetrominoVAO, 2, 2, GL_FLOAT, GL_FALSE,
-                            offsetof(TetrominoVertex, uv));
-  glVertexArrayAttribBinding(m_tetrominoVAO, 2, 0);
+void App::setCameraPreset(std::string_view preset) {
+  if (preset == "front") {
+    m_camera.Position = glm::vec3(0.0f, 10.0f, 30.0f);
+    m_camera.SetYaw(-90.0f);
+    m_camera.SetPitch(0.0f);
+  } else if (preset == "top") {
+    m_camera.Position = glm::vec3(0.0f, 40.0f, 0.0f);
+    m_camera.SetYaw(-90.0f);
+    m_camera.SetPitch(-89.0f); // Avoid gimbal lock at -90
+  } else if (preset == "isometric") {
+    m_camera.Position = glm::vec3(20.0f, 25.0f, 20.0f);
+    m_camera.SetYaw(-135.0f);
+    m_camera.SetPitch(-25.0f);
+  }
 }
 
 void App::_setupUIElements() {
-  m_uiManager.addElement("test_click", {100, 100, 200, 200}, {0.0f, 1.0f, 0.0f},
+  m_uiManager.addElement("test_click", {10, 10, 200, 200}, {0.0f, 1.0f, 0.0f},
                          [this](UIElement *self) {
                            std::println("Hello world everyone, from ({}, {})",
                                         this->m_appState.inputState.mouseLastX,
@@ -71,32 +64,30 @@ void App::_setupUIElements() {
 }
 
 void App::_handleProcessInput(double delta_time) {
-  if (glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS)
-    m_camera.ProcessKeyboard(FORWARD, delta_time);
-  if (glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS)
-    m_camera.ProcessKeyboard(BACKWARD, delta_time);
-  if (glfwGetKey(m_window, GLFW_KEY_A) == GLFW_PRESS)
-    m_camera.ProcessKeyboard(LEFT, delta_time);
-  if (glfwGetKey(m_window, GLFW_KEY_D) == GLFW_PRESS)
-    m_camera.ProcessKeyboard(RIGHT, delta_time);
+  // Preset Selection
+  if (glfwGetKey(m_window, GLFW_KEY_1) == GLFW_PRESS)
+    setCameraPreset("front");
+  if (glfwGetKey(m_window, GLFW_KEY_2) == GLFW_PRESS)
+    setCameraPreset("top");
+  if (glfwGetKey(m_window, GLFW_KEY_3) == GLFW_PRESS)
+    setCameraPreset("isometric");
+
+  // Manual Rotation with A and D
+  if (glfwGetKey(m_window, GLFW_KEY_A) == GLFW_PRESS) {
+    m_camera.SetYaw(m_camera.GetYaw() -
+                    m_rotationSpeed * static_cast<float>(delta_time));
+    m_camera.ProcessMouseMovement(0, 0);
+  }
+  if (glfwGetKey(m_window, GLFW_KEY_D) == GLFW_PRESS) {
+    m_camera.SetYaw(m_camera.GetYaw() +
+                    m_rotationSpeed * static_cast<float>(delta_time));
+    m_camera.ProcessMouseMovement(0, 0);
+  }
 }
 
 // internal event handler
 void App::_handleMouseMoveCallback(double pos_x, double pos_y) {
-  if (m_appState.inputState.isFirstMouse) {
-    m_appState.inputState.mouseLastX = pos_x;
-    m_appState.inputState.mouseLastY = pos_y;
-    m_appState.inputState.isFirstMouse = false;
-  }
-
-  float offset_x = pos_x - m_appState.inputState.mouseLastX;
-  float offset_y = m_appState.inputState.mouseLastY -
-                   pos_y; // reversed since y-coordinates go from bottom to top
-
-  m_appState.inputState.mouseLastX = pos_x;
-  m_appState.inputState.mouseLastY = pos_y;
-
-  m_camera.ProcessMouseMovement(offset_x, offset_y);
+  // Reserve for future controls
 }
 
 void App::_handleMouseClickCallback(int button, int action, int mods) {
@@ -107,7 +98,12 @@ void App::_handleMouseClickCallback(int button, int action, int mods) {
 }
 
 void App::_handleScrollCallback(double offset_x, double offset_y) {
-  m_camera.ProcessMouseScroll(static_cast<float>(offset_y));
+  float scrollSensitivity = 5.0f;
+  m_camera.SetYaw(m_camera.GetYaw() +
+                  static_cast<float>(offset_y) * scrollSensitivity);
+
+  // Update vectors to apply changes
+  m_camera.ProcessMouseMovement(0, 0);
 }
 
 void App::_handleFramebufferSizeCallback(int width, int height) {
