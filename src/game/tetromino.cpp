@@ -14,10 +14,13 @@ Tetromino::Tetromino(BlockType type, glm::ivec3 startPos)
 void Tetromino::rotateX(bool clockwise) {}
 void Tetromino::rotateY(bool clockwise) {}
 void Tetromino::rotateZ(bool clockwise) {}
-void Tetromino::moveRight() {}
-void Tetromino::moveLeft() {}
-void Tetromino::moveInward() {}
-void Tetromino::moveOutward() {}
+
+void Tetromino::moveLeft() { m_position.x--; }
+void Tetromino::moveRight() { m_position.x++; }
+void Tetromino::moveInward() { m_position.z++; }
+void Tetromino::moveOutward() { m_position.z--; }
+void Tetromino::moveDown() { m_position.y--; }
+void Tetromino::moveUp() { m_position.y++; }
 
 std::vector<glm::ivec3> Tetromino::getGlobalPositions() const {
   std::vector<glm::ivec3> globalPositions(m_offsets.size());
@@ -29,7 +32,9 @@ std::vector<glm::ivec3> Tetromino::getGlobalPositions() const {
   return globalPositions;
 }
 
-glm::vec3 Tetromino::getColor() { return m_color; }
+glm::vec3 Tetromino::getColor() const { return m_color; }
+
+BlockType Tetromino::getType() const { return m_type; }
 
 glm::vec3 TetrominoFactory::getColor(BlockType type) {
   switch (type) {

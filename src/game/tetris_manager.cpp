@@ -16,6 +16,27 @@ TetrisManager::TetrisManager() : m_activePiece(_get_random_piece()) {
 
 TetrisManager::~TetrisManager() {}
 
+void TetrisManager::update(double delta_time) {
+  double base_speed =
+      std::max(0.05, m_baseDropDelay - (m_level * m_delayDecreaseRate));
+  double current_tick_delay =
+      m_isSoftDropping ? (base_speed / 10.0) : base_speed;
+
+  m_dropTimer += delta_time;
+
+  // on drop
+  while (m_dropTimer >= current_tick_delay) {
+    m_dropTimer -= current_tick_delay;
+
+    if (!_moveDown()) {
+      // check if line clear, then commit the operation (move this pice to the
+      // tetris space)
+      _commit();
+      m_activePiece = _get_random_piece();
+    }
+  }
+}
+
 void TetrisManager::render(const Camera &camera, double delta_time) {
   glEnable(GL_DEPTH_TEST);
 
@@ -55,13 +76,119 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
 }
 
 // Control activePiece
-void TetrisManager::rotateX(bool clockwise) {}
-void TetrisManager::rotateY(bool clockwise) {}
-void TetrisManager::rotateZ(bool clockwise) {}
-void TetrisManager::moveLeft() {}
-void TetrisManager::moveRight() {}
-void TetrisManager::moveInward() {}
-void TetrisManager::moveOutward() {}
+bool TetrisManager::rotateX(bool clockwise) {
+  m_activePiece.rotateX(clockwise);
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.rotateX(!clockwise);
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::rotateY(bool clockwise) {
+  m_activePiece.rotateY(clockwise);
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.rotateY(!clockwise);
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::rotateZ(bool clockwise) {
+  m_activePiece.rotateZ(clockwise);
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.rotateZ(!clockwise);
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::moveLeft() {
+  m_activePiece.moveLeft();
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.moveRight();
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::moveRight() {
+  m_activePiece.moveRight();
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.moveLeft();
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::moveInward() {
+  m_activePiece.moveInward();
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.moveOutward();
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::moveOutward() {
+  m_activePiece.moveOutward();
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.moveInward();
+    return false;
+  }
+
+  return true;
+}
+
+void TetrisManager::_commit() {
+  for (glm::ivec3 cell_position : m_activePiece.getGlobalPositions()) {
+    m_space.at(cell_position.x, cell_position.y, cell_position.z).type =
+        m_activePiece.getType();
+  }
+}
+
+bool TetrisManager::_moveDown() {
+  m_activePiece.moveDown();
+
+  if (!_checkValidAction(m_activePiece)) {
+    m_activePiece.moveUp();
+    return false;
+  }
+
+  return true;
+}
+
+bool TetrisManager::_checkValidAction(const Tetromino &moved_piece) const {
+  std::vector<glm::ivec3> active_piece_cell_positions =
+      moved_piece.getGlobalPositions();
+
+  for (glm::ivec3 cell_position : active_piece_cell_positions) {
+    if (!m_space.checkInBound(cell_position.x, cell_position.y,
+                              cell_position.z)) {
+      return false;
+    }
+
+    if (m_space.at(cell_position.x, cell_position.y, cell_position.z)
+            .isOccupied()) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 Tetromino TetrisManager::_get_random_piece() {
   static std::mt19937 gen(std::random_device{}());

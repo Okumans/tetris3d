@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "game/space.hpp"
+#include "glm/fwd.hpp"
 
 class Tetromino {
 private:
@@ -19,13 +20,17 @@ public:
   void rotateX(bool clockwise = true);
   void rotateY(bool clockwise = true);
   void rotateZ(bool clockwise = true);
+
   void moveLeft();
   void moveRight();
   void moveInward();
   void moveOutward();
+  void moveDown();
+  void moveUp();
 
   std::vector<glm::ivec3> getGlobalPositions() const;
-  glm::vec3 getColor();
+  glm::vec3 getColor() const;
+  BlockType getType() const;
 };
 
 struct TetrominoData {

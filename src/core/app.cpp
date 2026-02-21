@@ -11,6 +11,8 @@ void App::render(double delta_time) {
   _handleProcessInput(delta_time);
   m_camera_controller.Update(delta_time);
 
+  m_game.update(delta_time);
+
   m_game.render(m_camera, delta_time);
   m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
 }
@@ -21,6 +23,7 @@ App::App(GLFWwindow *window)
 
   glfwSetWindowUserPointer(m_window, (void *)this);
 
+  glfwSetKeyCallback(m_window, _glfwKeyCallback);
   glfwSetCursorPosCallback(m_window, _glfwMouseMoveCallback);
   glfwSetMouseButtonCallback(m_window, _glfwMouseButtonCallback);
   glfwSetScrollCallback(m_window, _glfwScrollCallback);
@@ -36,7 +39,7 @@ App::App(GLFWwindow *window)
   m_camera_controller.SetPreset(CameraPreset::FRONT);
 }
 
-App::~App() { glDeleteVertexArrays(1, &m_tetrominoVAO); }
+App::~App() = default;
 
 void App::_setupShaders() {
   ShaderManager::loadShader(ShaderType::UI, UI_VERTEX_SHADER_PATH,
@@ -72,6 +75,26 @@ void App::_handleProcessInput(double delta_time) {
   m_camera_controller.HandleRotationInput(left, right, up, down, delta_time);
 }
 
+void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
+  if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+    switch (key) {
+    case GLFW_KEY_LEFT:
+      m_game.moveLeft();
+      break;
+    case GLFW_KEY_RIGHT:
+      m_game.moveRight();
+      break;
+    case GLFW_KEY_UP:
+      m_game.moveOutward();
+      break;
+    case GLFW_KEY_DOWN:
+      m_game.moveInward();
+      break;
+      // Space for instant drop, etc.
+    }
+  }
+}
+
 // internal event handler
 void App::_handleMouseMoveCallback(double pos_x, double pos_y) {
   // Reserve for future controls
@@ -85,6 +108,8 @@ void App::_handleMouseClickCallback(int button, int action, int mods) {
 }
 
 void App::_handleScrollCallback(double offset_x, double offset_y) {
+  // TODO: implement zooming in camera control, and utilized it here
+
   // float scrollSensitivity = 5.0f;
   // m_camera_controller.SetYaw(m_camera_controller.GetYaw() +
   //                            static_cast<float>(offset_y) *
@@ -102,6 +127,14 @@ void App::_handleFramebufferSizeCallback(int width, int height) {
 }
 
 // GLFW static callbacks adapters
+void App::_glfwKeyCallback(GLFWwindow *window, int key, int scancode,
+                           int action, int mods) {
+  App *app = static_cast<App *>(glfwGetWindowUserPointer(window));
+
+  if (app) {
+    app->_handleKeyCallback(key, scancode, action, mods);
+  }
+}
 void App::_glfwMouseMoveCallback(GLFWwindow *window, double x_pos,
                                  double y_pos) {
   App *app = static_cast<App *>(glfwGetWindowUserPointer(window));

@@ -3,7 +3,6 @@
 #include "camera.h"
 #include "core/camera_controller.hpp"
 #include "game/tetris_manager.hpp"
-#include "glad/gl.h"
 #include "ui/ui_manager.hpp"
 #include <GLFW/glfw3.h>
 
@@ -43,9 +42,6 @@ private:
   TetrisManager m_game;
   UIManager m_uiManager;
 
-  // VAOs
-  GLuint m_tetrominoVAO;
-
 public:
   App(GLFWwindow *window);
   ~App();
@@ -53,6 +49,8 @@ public:
 
 private:
   // GLFW static callbacks adapters
+  static void _glfwKeyCallback(GLFWwindow *window, int key, int scancode,
+                               int action, int mods);
   static void _glfwMouseMoveCallback(GLFWwindow *window, double pos_x,
                                      double pos_y);
   static void _glfwMouseButtonCallback(GLFWwindow *window, int button,
@@ -62,6 +60,7 @@ private:
   static void _glfwFramebufferSizeCallback(GLFWwindow *window, int width,
                                            int height);
   // internal event handler
+  void _handleKeyCallback(int key, int scancode, int action, int mods);
   void _handleProcessInput(double delta_time);
   void _handleMouseMoveCallback(double pos_x, double pos_y);
   void _handleMouseClickCallback(int button, int action, int mods);

@@ -35,6 +35,7 @@ public:
 
   GridCell &at(int x, int y, int z);
   const GridCell &at(int x, int y, int z) const;
+  bool checkInBound(int x, int y, int z) const;
 
   static glm::vec3 gridToWorld(int x, int y, int z);
 };
@@ -48,6 +49,13 @@ template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
 GridCell &TetrisSpace<WIDTH, HEIGHT, DEPTH>::at(int x, int y, int z) {
   return m_cells[x + y * WIDTH + z * WIDTH * HEIGHT];
 }
+
+template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
+const GridCell &TetrisSpace<WIDTH, HEIGHT, DEPTH>::at(int x, int y,
+                                                      int z) const {
+  return m_cells[x + y * WIDTH + z * WIDTH * HEIGHT];
+}
+
 template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
 glm::vec3 TetrisSpace<WIDTH, HEIGHT, DEPTH>::gridToWorld(int x, int y, int z) {
   float worldX = (float)x - (float)WIDTH / 2.0f + 0.5f;
@@ -55,4 +63,11 @@ glm::vec3 TetrisSpace<WIDTH, HEIGHT, DEPTH>::gridToWorld(int x, int y, int z) {
   float worldZ = (float)z - (float)DEPTH / 2.0f + 0.5f;
 
   return glm::vec3(worldX, worldY, worldZ);
+}
+
+template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
+bool TetrisSpace<WIDTH, HEIGHT, DEPTH>::checkInBound(int x, int y,
+                                                     int z) const {
+  return (x >= 0 && x < WIDTH) && (y >= 0 && y < HEIGHT) &&
+         (z >= 0 && z < DEPTH);
 }
