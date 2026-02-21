@@ -1,7 +1,8 @@
 #pragma once
 
 #include "camera.h"
-#include <glm/gtx/compatibility.hpp> // for glm::lerp
+#include "glm/common.hpp"
+#include <glm/gtx/compatibility.hpp>
 
 enum class CameraPreset { FRONT, TOP, ISOMETRIC };
 
@@ -74,28 +75,15 @@ public:
     // TODO: move this into camera controller properties
     float orbitSpeed = 90.0f; // Degrees per second
 
-    if (m_activePreset == CameraPreset::TOP) {
-      // In Top view, A/D snaps or rotates 90 degrees
-      if (left)
-        m_targetYaw -= orbitSpeed * delta_time;
-      if (right)
-        m_targetYaw += orbitSpeed * delta_time;
-    } else {
-      // General orbiting
-      if (left)
-        m_targetYaw -= orbitSpeed * delta_time;
-      if (right)
-        m_targetYaw += orbitSpeed * delta_time;
-      if (up)
-        m_targetPitch -= orbitSpeed * delta_time;
-      if (down)
-        m_targetPitch += orbitSpeed * delta_time;
-    }
+    if (left)
+      m_targetYaw += orbitSpeed * delta_time;
+    if (right)
+      m_targetYaw -= orbitSpeed * delta_time;
+    if (up)
+      m_targetPitch -= orbitSpeed * delta_time;
+    if (down)
+      m_targetPitch += orbitSpeed * delta_time;
 
-    // Clamp Pitch to prevent flipping
-    if (m_targetPitch > 89.0f)
-      m_targetPitch = 89.0f;
-    if (m_targetPitch < -89.0f)
-      m_targetPitch = -89.0f;
+    m_targetPitch = glm::clamp(m_targetPitch, -89.0f, 89.0f);
   }
 };
