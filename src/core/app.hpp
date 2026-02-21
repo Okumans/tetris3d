@@ -39,9 +39,6 @@ private:
   Camera m_camera;
   CameraController m_camera_controller;
 
-  float m_transitionSpeed = 5.0f;
-  float m_rotationSpeed = 60.0f;
-
   AppState m_appState;
   TetrisManager m_game;
   UIManager m_uiManager;

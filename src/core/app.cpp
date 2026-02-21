@@ -46,7 +46,7 @@ void App::_setupShaders() {
 }
 
 void App::_setupUIElements() {
-  m_uiManager.addElement("test_click", {10, 10, 200, 200}, {0.0f, 1.0f, 0.0f},
+  m_uiManager.addElement("test_click", {10, 10, 50, 50}, {0.0f, 1.0f, 0.0f},
                          [this](UIElement *self) {
                            std::println("Hello world everyone, from ({}, {})",
                                         this->m_appState.inputState.mouseLastX,

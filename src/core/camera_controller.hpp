@@ -31,11 +31,11 @@ public:
     case CameraPreset::FRONT:
       m_targetYaw = -90.0f;
       m_targetPitch = 0.0f;
-      m_targetDistance = -30.0f;
+      m_targetDistance = -35.0f;
       break;
     case CameraPreset::TOP:
       m_targetPitch = -89.0f; // Stay near top
-      m_targetDistance = -40.0f;
+      m_targetDistance = -35.0f;
       break;
     case CameraPreset::ISOMETRIC:
       m_targetYaw = -135.0f;
@@ -49,6 +49,7 @@ public:
     // Smoothly interpolate values toward targets
     // TODO: move this into camera controller properties
     float lerpSpeed = 5.0f;
+
     m_curYaw = glm::lerp(m_curYaw, m_targetYaw, lerpSpeed * delta_time);
     m_curPitch = glm::lerp(m_curPitch, m_targetPitch, lerpSpeed * delta_time);
     m_curDistance =
