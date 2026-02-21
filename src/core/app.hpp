@@ -1,6 +1,7 @@
 #pragma once
 
 #include "camera.h"
+#include "core/camera_controller.hpp"
 #include "game/tetris_manager.hpp"
 #include "glad/gl.h"
 #include "ui/ui_manager.hpp"
@@ -36,6 +37,8 @@ private:
   GLFWwindow *m_window;
 
   Camera m_camera;
+  CameraController m_camera_controller;
+
   float m_transitionSpeed = 5.0f;
   float m_rotationSpeed = 60.0f;
 
@@ -50,7 +53,6 @@ public:
   App(GLFWwindow *window);
   ~App();
   void render(double delta_time);
-  void setCameraPreset(std::string_view preset);
 
 private:
   // GLFW static callbacks adapters
