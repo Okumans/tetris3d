@@ -2,6 +2,7 @@
 #include "GLFW/glfw3.h"
 #include "core/camera_controller.hpp"
 #include "core/shader_manager.hpp"
+#include "game/tetris_manager.hpp"
 #include "glad/gl.h"
 #include "ui/ui_manager.hpp"
 #include <print>
@@ -76,19 +77,22 @@ void App::_handleProcessInput(double delta_time) {
 }
 
 void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
+
+  using RelativeDir = TetrisManager::RelativeDir;
+
   if (action == GLFW_PRESS || action == GLFW_REPEAT) {
     switch (key) {
     case GLFW_KEY_LEFT:
-      m_game.moveLeft();
+      m_game.moveRelative(RelativeDir::LEFT, m_camera);
       break;
     case GLFW_KEY_RIGHT:
-      m_game.moveRight();
+      m_game.moveRelative(RelativeDir::RIGHT, m_camera);
       break;
     case GLFW_KEY_UP:
-      m_game.moveOutward();
+      m_game.moveRelative(RelativeDir::BACK, m_camera);
       break;
     case GLFW_KEY_DOWN:
-      m_game.moveInward();
+      m_game.moveRelative(RelativeDir::FORWARD, m_camera);
       break;
       // Space for instant drop, etc.
     }

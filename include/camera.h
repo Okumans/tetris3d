@@ -1,6 +1,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include "glm/fwd.hpp"
 #include <cmath>
 #include <glad/gl.h>
 #include <glm/glm.hpp>
@@ -129,6 +130,9 @@ public:
 
   float GetYaw() const { return m_yaw; }
   float GetPitch() const { return m_pitch; }
+
+  glm::vec3 GetRight() const { return m_right; }
+  glm::vec3 GetFront() const { return m_front; }
 
   void UpdateSceneSize(float width, float height) {
     m_sceneWidth = width;

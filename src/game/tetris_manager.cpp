@@ -8,7 +8,11 @@
 #include "glm/fwd.hpp"
 #include "shader.h"
 
+#include <algorithm>
+#include <glm/gtx/hash.hpp>
 #include <random>
+#include <ranges>
+#include <utility>
 
 TetrisManager::TetrisManager() : m_activePiece(_get_random_piece()) {
   _setupBuffers();
@@ -24,7 +28,6 @@ void TetrisManager::update(double delta_time) {
 
   m_dropTimer += delta_time;
 
-  // on drop
   while (m_dropTimer >= current_tick_delay) {
     m_dropTimer -= current_tick_delay;
 
@@ -32,6 +35,18 @@ void TetrisManager::update(double delta_time) {
       // check if line clear, then commit the operation (move this pice to the
       // tetris space)
       _commit();
+
+      // recalculate height map
+      for (int y = 0; y < SPACE_HEIGHT; ++y) {
+        for (auto [x, z] : m_activePiece.getGlobalPositions() |
+                               std::views::transform([](glm::ivec3 pos) {
+                                 return std::make_pair(pos.x, pos.z);
+                               })) {
+          m_depth_map[x][z] = std::max(
+              m_depth_map[x][z], m_space.at(x, y, z).isOccupied() ? y + 1 : 0);
+        }
+      }
+
       m_activePiece = _get_random_piece();
     }
   }
@@ -48,7 +63,7 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   shader.setMat4("u_projection", camera.GetProjectionMatrix());
 
   shader.setMat4("u_model", glm::mat4(1.0f));
-  shader.setVec3("u_color", glm::vec3(0.5f)); // Grey outline
+  shader.setVec4("u_color", glm::vec4(0.5f, 0.5f, 0.5f, 0.7f)); // Grey outline
   m_gridBox.render(camera.GetViewMatrix(), camera.GetProjectionMatrix());
 
   glBindVertexArray(m_vao);
@@ -57,21 +72,60 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   for (int y = 0; y < SPACE_HEIGHT; ++y) {
     for (int x = 0; x < SPACE_WIDTH; ++x) {
       for (int z = 0; z < SPACE_DEPTH; ++z) {
-        const auto &cell = m_space.at(x, y, z);
+        const GridCell &cell = m_space.at(x, y, z);
+
         if (cell.isOccupied()) {
           glm::vec3 world_pos = m_space.gridToWorld(x, y, z);
-          glm::vec3 color = TetrominoFactory::getColor(cell.type);
+          glm::vec4 color =
+              glm::vec4(TetrominoFactory::getColor(cell.type), 1.0f);
           _drawCell(world_pos, color, shader);
         }
       }
     }
   }
 
+  int max_floor_y = 0;
+
   // Draw Active Piece
-  glm::vec3 active_piece_color = m_activePiece.getColor();
-  for (const auto &gridPos : m_activePiece.getGlobalPositions()) {
-    glm::vec3 world_pos = m_space.gridToWorld(gridPos.x, gridPos.y, gridPos.z);
+  glm::vec4 active_piece_color(m_activePiece.getColor(), 1.0f);
+  for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
+    glm::vec3 world_pos =
+        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
     _drawCell(world_pos, active_piece_color, shader);
+
+    // For preivew piece floor
+    max_floor_y = std::max(max_floor_y, m_depth_map[grid_pos.x][grid_pos.z]);
+  }
+
+  glm::ivec3 preivew_relative_pos;
+  bool found_preview_y_pos = false;
+
+  for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
+    if (found_preview_y_pos) {
+      break;
+    }
+
+    for (int y = max_floor_y; y >= 0; --y) {
+      glm::ivec3 relative_pos(0, y - m_activePiece.getPosition().y, 0);
+
+      if (relative_pos.y > 0 ||
+          (!_checkValidPiecePosition(
+              m_activePiece.tryMoveRelative(relative_pos)))) {
+        found_preview_y_pos = true;
+        break;
+      }
+
+      preivew_relative_pos = relative_pos;
+    }
+  }
+
+  // Draw Preview Piece
+  glm::vec4 preview_piece_color(m_activePiece.getColor(), 0.2f);
+  for (glm::ivec3 grid_pos :
+       m_activePiece.tryMoveRelative(preivew_relative_pos)) {
+    glm::vec3 world_pos =
+        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
+    _drawCell(world_pos, preview_piece_color, shader);
   }
 }
 
@@ -79,7 +133,7 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
 bool TetrisManager::rotateX(bool clockwise) {
   m_activePiece.rotateX(clockwise);
 
-  if (!_checkValidAction(m_activePiece)) {
+  if (!_checkValidPiece(m_activePiece)) {
     m_activePiece.rotateX(!clockwise);
     return false;
   }
@@ -90,7 +144,7 @@ bool TetrisManager::rotateX(bool clockwise) {
 bool TetrisManager::rotateY(bool clockwise) {
   m_activePiece.rotateY(clockwise);
 
-  if (!_checkValidAction(m_activePiece)) {
+  if (!_checkValidPiece(m_activePiece)) {
     m_activePiece.rotateY(!clockwise);
     return false;
   }
@@ -101,7 +155,7 @@ bool TetrisManager::rotateY(bool clockwise) {
 bool TetrisManager::rotateZ(bool clockwise) {
   m_activePiece.rotateZ(clockwise);
 
-  if (!_checkValidAction(m_activePiece)) {
+  if (!_checkValidPiece(m_activePiece)) {
     m_activePiece.rotateZ(!clockwise);
     return false;
   }
@@ -109,46 +163,37 @@ bool TetrisManager::rotateZ(bool clockwise) {
   return true;
 }
 
-bool TetrisManager::moveLeft() {
-  m_activePiece.moveLeft();
+bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
+  glm::vec3 cam_right = camera.GetRight();
+  glm::vec3 cam_front = camera.GetFront();
 
-  if (!_checkValidAction(m_activePiece)) {
-    m_activePiece.moveRight();
+  cam_right.y = 0;
+  cam_front.y = 0;
+  cam_right = glm::normalize(cam_right);
+  cam_front = glm::normalize(cam_front);
+
+  glm::ivec3 gridMove(0);
+
+  switch (direction) {
+  case RelativeDir::RIGHT:
+    gridMove = _snapToGridAxis(cam_right);
+    break;
+  case RelativeDir::LEFT:
+    gridMove = _snapToGridAxis(-cam_right);
+    break;
+  case RelativeDir::FORWARD:
+    gridMove = _snapToGridAxis(-cam_front);
+    break;
+  case RelativeDir::BACK:
+    gridMove = _snapToGridAxis(cam_front);
+    break;
+  }
+
+  if (!_checkValidPiecePosition(m_activePiece.tryMoveRelative(gridMove))) {
     return false;
   }
 
-  return true;
-}
-
-bool TetrisManager::moveRight() {
-  m_activePiece.moveRight();
-
-  if (!_checkValidAction(m_activePiece)) {
-    m_activePiece.moveLeft();
-    return false;
-  }
-
-  return true;
-}
-
-bool TetrisManager::moveInward() {
-  m_activePiece.moveInward();
-
-  if (!_checkValidAction(m_activePiece)) {
-    m_activePiece.moveOutward();
-    return false;
-  }
-
-  return true;
-}
-
-bool TetrisManager::moveOutward() {
-  m_activePiece.moveOutward();
-
-  if (!_checkValidAction(m_activePiece)) {
-    m_activePiece.moveInward();
-    return false;
-  }
+  m_activePiece.moveRelative(gridMove);
 
   return true;
 }
@@ -161,21 +206,24 @@ void TetrisManager::_commit() {
 }
 
 bool TetrisManager::_moveDown() {
-  m_activePiece.moveDown();
+  const glm::ivec3 direction = {0, -1, 0};
 
-  if (!_checkValidAction(m_activePiece)) {
-    m_activePiece.moveUp();
+  if (!_checkValidPiecePosition(m_activePiece.tryMoveRelative(direction))) {
     return false;
   }
+
+  m_activePiece.moveRelative(direction);
 
   return true;
 }
 
-bool TetrisManager::_checkValidAction(const Tetromino &moved_piece) const {
-  std::vector<glm::ivec3> active_piece_cell_positions =
-      moved_piece.getGlobalPositions();
+bool TetrisManager::_checkValidPiece(const Tetromino &moved_piece) const {
+  return _checkValidPiecePosition(moved_piece.getGlobalPositions());
+}
 
-  for (glm::ivec3 cell_position : active_piece_cell_positions) {
+bool TetrisManager::_checkValidPiecePosition(
+    IVec3Range auto &&positions) const {
+  for (glm::ivec3 cell_position : positions) {
     if (!m_space.checkInBound(cell_position.x, cell_position.y,
                               cell_position.z)) {
       return false;
@@ -188,6 +236,14 @@ bool TetrisManager::_checkValidAction(const Tetromino &moved_piece) const {
   }
 
   return true;
+}
+
+glm::ivec3 TetrisManager::_snapToGridAxis(glm::vec3 direction) {
+  if (std::abs(direction.x) > std::abs(direction.z)) {
+    return glm::ivec3(direction.x > 0 ? 1 : -1, 0, 0);
+  } else {
+    return glm::ivec3(0, 0, direction.z > 0 ? 1 : -1);
+  }
 }
 
 Tetromino TetrisManager::_get_random_piece() {
@@ -284,11 +340,11 @@ void TetrisManager::_setupBuffers() {
   glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(TetrominoVertex));
 }
 
-void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec3 color,
+void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec4 color,
                               const Shader &shader) {
   glm::mat4 model = glm::translate(glm::mat4(1.0f), world_pos);
   shader.setMat4("u_model", model);
-  shader.setVec3("u_color", color);
+  shader.setVec4("u_color", color);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }

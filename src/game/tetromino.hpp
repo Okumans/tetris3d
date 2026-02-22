@@ -1,5 +1,6 @@
 #pragma once
 
+#include <generator>
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -7,11 +8,16 @@
 #include "glm/fwd.hpp"
 
 class Tetromino {
+public:
+  struct ColumnOffset {
+    int x, z, minY;
+  };
+
 private:
   BlockType m_type;
   glm::ivec3 m_position;
-  std::vector<glm::ivec3> m_offsets;
   glm::vec3 m_color;
+  std::vector<glm::ivec3> m_offsets;
 
 public:
   Tetromino(BlockType type, glm::ivec3 startPos);
@@ -21,15 +27,13 @@ public:
   void rotateY(bool clockwise = true);
   void rotateZ(bool clockwise = true);
 
-  void moveLeft();
-  void moveRight();
-  void moveInward();
-  void moveOutward();
-  void moveDown();
-  void moveUp();
+  void moveRelative(glm::ivec3 direction);
 
-  std::vector<glm::ivec3> getGlobalPositions() const;
+  std::generator<glm::ivec3> tryMoveRelative(glm::ivec3 direction) const;
+  std::generator<glm::ivec3> getGlobalPositions() const;
+  const std::vector<glm::ivec3> &getOffsets() const;
   glm::vec3 getColor() const;
+  glm::ivec3 getPosition() const;
   BlockType getType() const;
 };
 

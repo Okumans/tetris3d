@@ -26,6 +26,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${INC_DIR}
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23) # use c++23
+target_compile_options(${PROJECT_NAME} PRIVATE -std=c++23) # or c++23
 
 file(RELATIVE_PATH
   ASSETS_LOCATION
