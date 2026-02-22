@@ -65,6 +65,9 @@ void App::_handleProcessInput(double delta_time) {
   bool up = glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS;
   bool down = glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS;
 
+  bool softDropActive = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS);
+  m_game.setSoftDrop(softDropActive);
+
   // Preset Selection
   if (glfwGetKey(m_window, GLFW_KEY_1) == GLFW_PRESS)
     m_camera_controller.SetPreset(CameraPreset::FRONT);
@@ -77,24 +80,48 @@ void App::_handleProcessInput(double delta_time) {
 }
 
 void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
-
   using RelativeDir = TetrisManager::RelativeDir;
 
   if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+    bool shift = (mods & GLFW_MOD_SHIFT);
+    bool ctrl = (mods & GLFW_MOD_CONTROL);
+
     switch (key) {
-    case GLFW_KEY_LEFT:
-      m_game.moveRelative(RelativeDir::LEFT, m_camera);
-      break;
-    case GLFW_KEY_RIGHT:
-      m_game.moveRelative(RelativeDir::RIGHT, m_camera);
-      break;
     case GLFW_KEY_UP:
-      m_game.moveRelative(RelativeDir::BACK, m_camera);
+      if (shift)
+        m_game.rotateX(true);
+      else
+        m_game.moveRelative(RelativeDir::BACK, m_camera);
       break;
+
     case GLFW_KEY_DOWN:
-      m_game.moveRelative(RelativeDir::FORWARD, m_camera);
+      if (shift)
+        m_game.rotateX(false);
+      else
+        m_game.moveRelative(RelativeDir::FORWARD, m_camera);
       break;
-      // Space for instant drop, etc.
+
+    case GLFW_KEY_LEFT:
+      if (shift)
+        m_game.rotateZ(true);
+      else if (ctrl)
+        m_game.rotateY(true);
+      else
+        m_game.moveRelative(RelativeDir::LEFT, m_camera);
+      break;
+
+    case GLFW_KEY_RIGHT:
+      if (shift)
+        m_game.rotateZ(false);
+      else if (ctrl)
+        m_game.rotateY(false);
+      else
+        m_game.moveRelative(RelativeDir::RIGHT, m_camera);
+      break;
+
+    case GLFW_KEY_ENTER:
+      m_game.hardDrop();
+      break;
     }
   }
 }

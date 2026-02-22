@@ -4,11 +4,13 @@
 #include "game/space.hpp"
 #include "game/tetromino.hpp"
 #include "glad/gl.h"
+#include "glm/fwd.hpp"
 #include "shader.h"
 #include "ui/grid_box.hpp"
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <optional>
 
 template <typename R>
 concept IVec3Range = std::ranges::input_range<R> &&
@@ -30,7 +32,7 @@ private:
   Tetromino m_activePiece;
   std::deque<Tetromino> m_nextPieces;
   bool m_isSoftDropping = false;
-  bool m_swapWithNextPieceQuota = true;
+  std::optional<BlockType> m_holded_piece;
   uint8_t m_level = 0;
   uint64_t m_score = 0;
   double m_dropTimer = 0;
@@ -58,10 +60,13 @@ public:
 
   bool moveRelative(RelativeDir direction, const Camera &camera);
 
-  void swapWithNextPiece();
+  void hardDrop();
+
+  void setSoftDrop(bool is_soft_dropping);
 
 private:
   void _commit();
+  glm::ivec3 _calculateDropOffset();
 
   bool _moveDown();
   bool _checkValidPiece(const Tetromino &moved_piece) const;

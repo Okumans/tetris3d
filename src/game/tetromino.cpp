@@ -12,9 +12,47 @@ Tetromino::Tetromino(BlockType type, glm::ivec3 startPos)
 }
 
 // Control methods
-void Tetromino::rotateX(bool clockwise) {}
-void Tetromino::rotateY(bool clockwise) {}
-void Tetromino::rotateZ(bool clockwise) {}
+void Tetromino::rotateX(bool clockwise) {
+  for (auto &offset : m_offsets) {
+    int y = offset.y;
+    int z = offset.z;
+    if (clockwise) {
+      offset.y = z;
+      offset.z = -y;
+    } else {
+      offset.y = -z;
+      offset.z = y;
+    }
+  }
+}
+
+void Tetromino::rotateY(bool clockwise) {
+  for (auto &offset : m_offsets) {
+    int x = offset.x;
+    int z = offset.z;
+    if (clockwise) {
+      offset.x = -z;
+      offset.z = x;
+    } else {
+      offset.x = z;
+      offset.z = -x;
+    }
+  }
+}
+
+void Tetromino::rotateZ(bool clockwise) {
+  for (auto &offset : m_offsets) {
+    int x = offset.x;
+    int y = offset.y;
+    if (clockwise) {
+      offset.x = y;
+      offset.y = -x;
+    } else {
+      offset.x = -y;
+      offset.y = x;
+    }
+  }
+}
 
 void Tetromino::moveRelative(glm::ivec3 direction) { m_position += direction; }
 

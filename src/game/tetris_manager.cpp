@@ -3,13 +3,14 @@
 #include "core/shader_manager.hpp"
 #include "game/space.hpp"
 #include "game/tetromino.hpp"
-#include "glad/gl.h"
-#include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
 #include "shader.h"
 
-#include <algorithm>
+#include <glad/gl.h>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
+
+#include <algorithm>
 #include <random>
 #include <ranges>
 #include <utility>
@@ -49,6 +50,9 @@ void TetrisManager::update(double delta_time) {
 
       m_activePiece = _get_random_piece();
     }
+
+    if (m_isSoftDropping)
+      break;
   }
 }
 
@@ -84,45 +88,20 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
     }
   }
 
-  int max_floor_y = 0;
-
   // Draw Active Piece
   glm::vec4 active_piece_color(m_activePiece.getColor(), 1.0f);
   for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
     glm::vec3 world_pos =
         m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
     _drawCell(world_pos, active_piece_color, shader);
-
-    // For preivew piece floor
-    max_floor_y = std::max(max_floor_y, m_depth_map[grid_pos.x][grid_pos.z]);
-  }
-
-  glm::ivec3 preivew_relative_pos;
-  bool found_preview_y_pos = false;
-
-  for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
-    if (found_preview_y_pos) {
-      break;
-    }
-
-    for (int y = max_floor_y; y >= 0; --y) {
-      glm::ivec3 relative_pos(0, y - m_activePiece.getPosition().y, 0);
-
-      if (relative_pos.y > 0 ||
-          (!_checkValidPiecePosition(
-              m_activePiece.tryMoveRelative(relative_pos)))) {
-        found_preview_y_pos = true;
-        break;
-      }
-
-      preivew_relative_pos = relative_pos;
-    }
   }
 
   // Draw Preview Piece
-  glm::vec4 preview_piece_color(m_activePiece.getColor(), 0.2f);
+  glm::vec4 preview_piece_color(m_activePiece.getColor() * 1.7f, 0.2f);
+  glm::ivec3 preview_relative_pos = _calculateDropOffset();
+
   for (glm::ivec3 grid_pos :
-       m_activePiece.tryMoveRelative(preivew_relative_pos)) {
+       m_activePiece.tryMoveRelative(preview_relative_pos)) {
     glm::vec3 world_pos =
         m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
     _drawCell(world_pos, preview_piece_color, shader);
@@ -198,11 +177,57 @@ bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
   return true;
 }
 
+void TetrisManager::hardDrop() {
+  glm::ivec3 drop_offset = _calculateDropOffset();
+  m_activePiece.moveRelative(drop_offset);
+}
+
+void TetrisManager::setSoftDrop(bool is_soft_dropping) {
+  m_isSoftDropping = is_soft_dropping;
+}
+
 void TetrisManager::_commit() {
   for (glm::ivec3 cell_position : m_activePiece.getGlobalPositions()) {
     m_space.at(cell_position.x, cell_position.y, cell_position.z).type =
         m_activePiece.getType();
   }
+}
+
+// Returns relative distance to the dropped position
+// can used with Tetromino::moveRelative, or tryMoveRelative
+glm::ivec3 TetrisManager::_calculateDropOffset() {
+
+  int max_floor_y =
+      std::ranges::max(m_activePiece.getGlobalPositions() |
+                       std::views::transform([this](glm::ivec3 pos) {
+                         return this->m_depth_map[pos.x][pos.z];
+                       }));
+  int min_relative_y =
+      std::ranges::min(m_activePiece.getOffsets(), {}, &glm::ivec3::y).y;
+
+  glm::ivec3 preview_relative_pos(0);
+  bool found_preview_y_pos = false;
+
+  // for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
+  //   if (found_preview_y_pos) {
+  //     break;
+  //   }
+
+  for (int y = max_floor_y - min_relative_y; y >= 0; --y) {
+    glm::ivec3 relative_pos(0, y - m_activePiece.getPosition().y, 0);
+
+    if (relative_pos.y > 0 ||
+        (!_checkValidPiecePosition(
+            m_activePiece.tryMoveRelative(relative_pos)))) {
+      found_preview_y_pos = true;
+      break;
+    }
+
+    preview_relative_pos = relative_pos;
+  }
+  // }
+
+  return preview_relative_pos;
 }
 
 bool TetrisManager::_moveDown() {
