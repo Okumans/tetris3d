@@ -81,6 +81,7 @@ void App::_handleProcessInput(double delta_time) {
 
 void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
   using RelativeDir = TetrisManager::RelativeDir;
+  using RelativeRotation = TetrisManager::RelativeRotation;
 
   if (action == GLFW_PRESS || action == GLFW_REPEAT) {
     bool shift = (mods & GLFW_MOD_SHIFT);
@@ -89,32 +90,32 @@ void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
     switch (key) {
     case GLFW_KEY_UP:
       if (shift)
-        m_game.rotateX(true);
+        m_game.rotateRelative(RelativeRotation::PITCH, true, m_camera);
       else
         m_game.moveRelative(RelativeDir::BACK, m_camera);
       break;
 
     case GLFW_KEY_DOWN:
       if (shift)
-        m_game.rotateX(false);
+        m_game.rotateRelative(RelativeRotation::PITCH, false, m_camera);
       else
         m_game.moveRelative(RelativeDir::FORWARD, m_camera);
       break;
 
     case GLFW_KEY_LEFT:
       if (shift)
-        m_game.rotateZ(true);
+        m_game.rotateRelative(RelativeRotation::ROLL, true, m_camera);
       else if (ctrl)
-        m_game.rotateY(true);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, true, m_camera);
       else
         m_game.moveRelative(RelativeDir::LEFT, m_camera);
       break;
 
     case GLFW_KEY_RIGHT:
       if (shift)
-        m_game.rotateZ(false);
+        m_game.rotateRelative(RelativeRotation::ROLL, false, m_camera);
       else if (ctrl)
-        m_game.rotateY(false);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, false, m_camera);
       else
         m_game.moveRelative(RelativeDir::RIGHT, m_camera);
       break;

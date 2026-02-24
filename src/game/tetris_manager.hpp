@@ -18,7 +18,8 @@ concept IVec3Range = std::ranges::input_range<R> &&
 
 class TetrisManager {
 public:
-  enum class RelativeDir { LEFT, RIGHT, FORWARD, BACK };
+  enum class RelativeDir : uint8_t { LEFT, RIGHT, FORWARD, BACK };
+  enum class RelativeRotation : uint8_t { Y_AXIS, PITCH, ROLL };
 
   static const size_t SPACE_WIDTH = 10;
   static const size_t SPACE_HEIGHT = 20;
@@ -54,10 +55,12 @@ public:
   void update(double delta_time);
 
   // Control activePiece
-  bool rotateX(bool clockwise = true);
-  bool rotateY(bool clockwise = true);
-  bool rotateZ(bool clockwise = true);
+  // bool rotateX(bool clockwise = true);
+  // bool rotateY(bool clockwise = true);
+  // bool rotateZ(bool clockwise = true);
 
+  bool rotateRelative(RelativeRotation type, bool clockwise,
+                      const Camera &camera);
   bool moveRelative(RelativeDir direction, const Camera &camera);
 
   void hardDrop();
@@ -66,12 +69,18 @@ public:
 
 private:
   void _commit();
+  bool _checkLineClears();
+  void _spawnPiece();
   glm::ivec3 _calculateDropOffset();
-
+  void _updateDepthMap();
   bool _moveDown();
   bool _checkValidPiece(const Tetromino &moved_piece) const;
   bool _checkValidPiecePosition(IVec3Range auto &&positions) const;
+
   glm::ivec3 _snapToGridAxis(glm::vec3 direction);
+  void _applyGlobalRotation(glm::ivec3 axis, bool clockwise);
+  std::generator<glm::ivec3> _tryApplyGlobalRotation(glm::ivec3 axis,
+                                                     bool clockwise) const;
 
   static Tetromino _get_random_piece();
   void _setupBuffers();

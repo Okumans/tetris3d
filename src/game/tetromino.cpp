@@ -26,6 +26,24 @@ void Tetromino::rotateX(bool clockwise) {
   }
 }
 
+// Control methods
+std::generator<glm::ivec3> Tetromino::tryRotateX(bool clockwise) const {
+  for (glm::ivec3 offset : m_offsets) {
+    int y = offset.y;
+    int z = offset.z;
+
+    if (clockwise) {
+      offset.y = z;
+      offset.z = -y;
+    } else {
+      offset.y = -z;
+      offset.z = y;
+    }
+
+    co_yield offset + m_position;
+  }
+}
+
 void Tetromino::rotateY(bool clockwise) {
   for (auto &offset : m_offsets) {
     int x = offset.x;
@@ -40,6 +58,23 @@ void Tetromino::rotateY(bool clockwise) {
   }
 }
 
+std::generator<glm::ivec3> Tetromino::tryRotateY(bool clockwise) const {
+  for (glm::ivec3 offset : m_offsets) {
+    int x = offset.x;
+    int z = offset.z;
+
+    if (clockwise) {
+      offset.x = -z;
+      offset.z = x;
+    } else {
+      offset.x = z;
+      offset.z = -x;
+    }
+
+    co_yield offset + m_position;
+  }
+}
+
 void Tetromino::rotateZ(bool clockwise) {
   for (auto &offset : m_offsets) {
     int x = offset.x;
@@ -51,6 +86,23 @@ void Tetromino::rotateZ(bool clockwise) {
       offset.x = -y;
       offset.y = x;
     }
+  }
+}
+
+std::generator<glm::ivec3> Tetromino::tryRotateZ(bool clockwise) const {
+  for (glm::ivec3 offset : m_offsets) {
+    int x = offset.x;
+    int y = offset.y;
+
+    if (clockwise) {
+      offset.x = y;
+      offset.y = -x;
+    } else {
+      offset.x = -y;
+      offset.y = x;
+    }
+
+    co_yield offset + m_position;
   }
 }
 

@@ -11,9 +11,11 @@
 #include <glm/gtx/hash.hpp>
 
 #include <algorithm>
+#include <print>
 #include <random>
 #include <ranges>
 #include <utility>
+#include <vector>
 
 TetrisManager::TetrisManager() : m_activePiece(_get_random_piece()) {
   _setupBuffers();
@@ -33,26 +35,12 @@ void TetrisManager::update(double delta_time) {
     m_dropTimer -= current_tick_delay;
 
     if (!_moveDown()) {
+
       // check if line clear, then commit the operation (move this pice to the
       // tetris space)
       _commit();
-
-      // recalculate height map
-      for (int y = 0; y < SPACE_HEIGHT; ++y) {
-        for (auto [x, z] : m_activePiece.getGlobalPositions() |
-                               std::views::transform([](glm::ivec3 pos) {
-                                 return std::make_pair(pos.x, pos.z);
-                               })) {
-          m_depth_map[x][z] = std::max(
-              m_depth_map[x][z], m_space.at(x, y, z).isOccupied() ? y + 1 : 0);
-        }
-      }
-
-      m_activePiece = _get_random_piece();
+      _spawnPiece();
     }
-
-    if (m_isSoftDropping)
-      break;
   }
 }
 
@@ -100,6 +88,9 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   glm::vec4 preview_piece_color(m_activePiece.getColor() * 1.7f, 0.2f);
   glm::ivec3 preview_relative_pos = _calculateDropOffset();
 
+  std::println("({},{},{})", preview_relative_pos.x, preview_relative_pos.y,
+               preview_relative_pos.z);
+
   for (glm::ivec3 grid_pos :
        m_activePiece.tryMoveRelative(preview_relative_pos)) {
     glm::vec3 world_pos =
@@ -108,39 +99,71 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   }
 }
 
+bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise,
+                                   const Camera &camera) {
+  glm::ivec3 rotationAxis(0);
+
+  glm::vec3 cam_right = camera.GetRight();
+  glm::vec3 cam_front = camera.GetFront();
+  cam_right.y = 0;
+  cam_front.y = 0;
+
+  if (type == RelativeRotation::Y_AXIS) {
+    rotationAxis = glm::ivec3(0, 1, 0);
+  }
+
+  else if (type == RelativeRotation::PITCH) {
+    rotationAxis = _snapToGridAxis(cam_right);
+  }
+
+  else if (type == RelativeRotation::ROLL) {
+    rotationAxis = _snapToGridAxis(cam_front);
+  }
+
+  ;
+
+  if (!_checkValidPiecePosition(
+          _tryApplyGlobalRotation(rotationAxis, clockwise))) {
+    return false;
+  }
+
+  _applyGlobalRotation(rotationAxis, clockwise);
+  return true;
+}
+
 // Control activePiece
-bool TetrisManager::rotateX(bool clockwise) {
-  m_activePiece.rotateX(clockwise);
-
-  if (!_checkValidPiece(m_activePiece)) {
-    m_activePiece.rotateX(!clockwise);
-    return false;
-  }
-
-  return true;
-}
-
-bool TetrisManager::rotateY(bool clockwise) {
-  m_activePiece.rotateY(clockwise);
-
-  if (!_checkValidPiece(m_activePiece)) {
-    m_activePiece.rotateY(!clockwise);
-    return false;
-  }
-
-  return true;
-}
-
-bool TetrisManager::rotateZ(bool clockwise) {
-  m_activePiece.rotateZ(clockwise);
-
-  if (!_checkValidPiece(m_activePiece)) {
-    m_activePiece.rotateZ(!clockwise);
-    return false;
-  }
-
-  return true;
-}
+// bool TetrisManager::rotateX(bool clockwise) {
+//   m_activePiece.rotateX(clockwise);
+//
+//   if (!_checkValidPiece(m_activePiece)) {
+//     m_activePiece.rotateX(!clockwise);
+//     return false;
+//   }
+//
+//   return true;
+// }
+//
+// bool TetrisManager::rotateY(bool clockwise) {
+//   m_activePiece.rotateY(clockwise);
+//
+//   if (!_checkValidPiece(m_activePiece)) {
+//     m_activePiece.rotateY(!clockwise);
+//     return false;
+//   }
+//
+//   return true;
+// }
+//
+// bool TetrisManager::rotateZ(bool clockwise) {
+//   m_activePiece.rotateZ(clockwise);
+//
+//   if (!_checkValidPiece(m_activePiece)) {
+//     m_activePiece.rotateZ(!clockwise);
+//     return false;
+//   }
+//
+//   return true;
+// }
 
 bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
   glm::vec3 cam_right = camera.GetRight();
@@ -190,6 +213,63 @@ void TetrisManager::_commit() {
   for (glm::ivec3 cell_position : m_activePiece.getGlobalPositions()) {
     m_space.at(cell_position.x, cell_position.y, cell_position.z).type =
         m_activePiece.getType();
+
+    // Update depth map
+    m_depth_map[cell_position.x][cell_position.z] = std::max(
+        m_depth_map[cell_position.x][cell_position.z], cell_position.y);
+  }
+}
+
+bool TetrisManager::_checkLineClears() {
+  // Reuse memory across calls to avoid heap allocations
+  static std::vector<int> unique_y;
+  unique_y.clear();
+
+  // 1. Collect unique Y levels from the active piece
+  for (const auto &pos : m_activePiece.getGlobalPositions()) {
+    // Since there are only 4 blocks, a linear search is faster than hashing
+    if (std::ranges::find(unique_y, pos.y) == unique_y.end()) {
+      unique_y.push_back(pos.y);
+    }
+  }
+
+  bool clearedAnything = false;
+
+  // 2. Check each level
+  for (int y : unique_y) {
+    int occupiedCount = 0;
+    for (int x = 0; x < SPACE_WIDTH; ++x) {
+      for (int z = 0; z < SPACE_DEPTH; ++z) {
+        if (m_space.at(x, y, z).isOccupied()) {
+          occupiedCount++;
+        }
+      }
+    }
+
+    // Must be a full 10x10 plane (or whatever your dimensions are)
+    if (occupiedCount == (SPACE_WIDTH * SPACE_DEPTH)) {
+      // _performClear(y);
+      clearedAnything = true;
+    }
+  }
+
+  return clearedAnything;
+}
+
+void TetrisManager::_spawnPiece() { m_activePiece = _get_random_piece(); }
+
+void TetrisManager::_updateDepthMap() {
+  for (int x = 0; x < SPACE_WIDTH; ++x) {
+    for (int z = 0; z < SPACE_DEPTH; ++z) {
+      m_depth_map[x][z] = 0;
+
+      for (int y = SPACE_HEIGHT - 1; y >= 0; --y) {
+        if (m_space.at(x, y, z).isOccupied()) {
+          m_depth_map[x][z] = y;
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -206,28 +286,19 @@ glm::ivec3 TetrisManager::_calculateDropOffset() {
       std::ranges::min(m_activePiece.getOffsets(), {}, &glm::ivec3::y).y;
 
   glm::ivec3 preview_relative_pos(0);
-  bool found_preview_y_pos = false;
 
-  // for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
-  //   if (found_preview_y_pos) {
-  //     break;
-  //   }
+  int start_y = max_floor_y - min_relative_y;
+  int current_y = m_activePiece.getPosition().y;
 
-  for (int y = max_floor_y - min_relative_y; y >= 0; --y) {
-    glm::ivec3 relative_pos(0, y - m_activePiece.getPosition().y, 0);
+  for (int y = start_y; y < current_y; ++y) {
+    glm::ivec3 relative_pos(0, y - current_y, 0);
 
-    if (relative_pos.y > 0 ||
-        (!_checkValidPiecePosition(
-            m_activePiece.tryMoveRelative(relative_pos)))) {
-      found_preview_y_pos = true;
-      break;
+    if (_checkValidPiecePosition(m_activePiece.tryMoveRelative(relative_pos))) {
+      return relative_pos;
     }
-
-    preview_relative_pos = relative_pos;
   }
-  // }
 
-  return preview_relative_pos;
+  return glm::ivec3(0);
 }
 
 bool TetrisManager::_moveDown() {
@@ -263,12 +334,39 @@ bool TetrisManager::_checkValidPiecePosition(
   return true;
 }
 
-glm::ivec3 TetrisManager::_snapToGridAxis(glm::vec3 direction) {
-  if (std::abs(direction.x) > std::abs(direction.z)) {
-    return glm::ivec3(direction.x > 0 ? 1 : -1, 0, 0);
-  } else {
-    return glm::ivec3(0, 0, direction.z > 0 ? 1 : -1);
-  }
+glm::ivec3 TetrisManager::_snapToGridAxis(glm::vec3 dir) {
+  if (glm::length(dir) < 0.1f)
+    return glm::ivec3(0);
+  dir = glm::normalize(dir);
+
+  float absX = std::abs(dir.x);
+  float absY = std::abs(dir.y);
+  float absZ = std::abs(dir.z);
+
+  if (absX > absY && absX > absZ)
+    return glm::ivec3(dir.x > 0 ? 1 : -1, 0, 0);
+  if (absY > absX && absY > absZ)
+    return glm::ivec3(0, dir.y > 0 ? 1 : -1, 0);
+  return glm::ivec3(0, 0, dir.z > 0 ? 1 : -1);
+}
+
+std::generator<glm::ivec3>
+TetrisManager::_tryApplyGlobalRotation(glm::ivec3 axis, bool clockwise) const {
+  if (std::abs(axis.x) > 0)
+    return m_activePiece.tryRotateX(axis.x > 0 ? clockwise : !clockwise);
+  if (std::abs(axis.y) > 0)
+    return m_activePiece.tryRotateY(axis.y > 0 ? clockwise : !clockwise);
+
+  return m_activePiece.tryRotateZ(axis.z > 0 ? clockwise : !clockwise);
+}
+
+void TetrisManager::_applyGlobalRotation(glm::ivec3 axis, bool clockwise) {
+  if (std::abs(axis.x) > 0)
+    m_activePiece.rotateX(axis.x > 0 ? clockwise : !clockwise);
+  else if (std::abs(axis.y) > 0)
+    m_activePiece.rotateY(axis.y > 0 ? clockwise : !clockwise);
+  else if (std::abs(axis.z) > 0)
+    m_activePiece.rotateZ(axis.z > 0 ? clockwise : !clockwise);
 }
 
 Tetromino TetrisManager::_get_random_piece() {

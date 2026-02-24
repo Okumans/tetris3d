@@ -23,13 +23,18 @@ public:
   Tetromino(BlockType type, glm::ivec3 startPos);
 
   // Control methods
+  std::generator<glm::ivec3> tryRotateX(bool clockwise = true) const;
   void rotateX(bool clockwise = true);
+
+  std::generator<glm::ivec3> tryRotateY(bool clockwise = true) const;
   void rotateY(bool clockwise = true);
+
+  std::generator<glm::ivec3> tryRotateZ(bool clockwise = true) const;
   void rotateZ(bool clockwise = true);
 
+  std::generator<glm::ivec3> tryMoveRelative(glm::ivec3 direction) const;
   void moveRelative(glm::ivec3 direction);
 
-  std::generator<glm::ivec3> tryMoveRelative(glm::ivec3 direction) const;
   std::generator<glm::ivec3> getGlobalPositions() const;
   const std::vector<glm::ivec3> &getOffsets() const;
   glm::vec3 getColor() const;
