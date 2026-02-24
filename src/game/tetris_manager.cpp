@@ -1,4 +1,5 @@
 #include "tetris_manager.hpp"
+#include "GLFW/glfw3.h"
 #include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
 #include "game/space.hpp"
@@ -15,9 +16,20 @@
 #include <print>
 #include <random>
 #include <ranges>
+#include <utility>
 #include <vector>
 
-TetrisManager::TetrisManager() : m_activePiece(_getRandomPiece({0, 0, 0})) {
+TetrisManager::TetrisManager(const Camera &camera)
+    : m_camera(camera),
+      m_activePiece(_getRandomPiece(
+          {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2})) {
+
+  // popluate m_nextPieces
+  for (int i = 0; i < NEXT_PIECES_CAP; ++i) {
+    m_nextPieces.push_back(
+        _getRandomPiece({SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2}));
+  }
+
   _spawnPiece();
   _setupBuffers();
 }
@@ -84,19 +96,19 @@ void TetrisManager::update(double delta_time) {
   }
 }
 
-void TetrisManager::render(const Camera &camera, double delta_time) {
+void TetrisManager::render(double delta_time) {
   glEnable(GL_DEPTH_TEST);
 
   Shader shader = ShaderManager::getShader(ShaderType::TETROMINO);
   shader.use();
 
-  shader.setVec3("u_viewPos", camera.Position);
-  shader.setMat4("u_view", camera.GetViewMatrix());
-  shader.setMat4("u_projection", camera.GetProjectionMatrix());
+  shader.setVec3("u_viewPos", m_camera.Position);
+  shader.setMat4("u_view", m_camera.GetViewMatrix());
+  shader.setMat4("u_projection", m_camera.GetProjectionMatrix());
 
   shader.setMat4("u_model", glm::mat4(1.0f));
   shader.setVec4("u_color", glm::vec4(0.5f, 0.5f, 0.5f, 0.7f)); // Grey outline
-  m_gridBox.render(camera.GetViewMatrix(), camera.GetProjectionMatrix());
+  m_gridBox.render(m_camera.GetViewMatrix(), m_camera.GetProjectionMatrix());
 
   glBindVertexArray(m_vao);
 
@@ -144,14 +156,32 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
         m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
     _drawCell(world_pos, preview_piece_color, shader);
   }
+
+  // Work around For renderig next Pieces (not perm)
+
+  glClear(GL_DEPTH_BUFFER_BIT);
+  float uiSize = 40.0f;
+  glm::mat4 hudProj = glm::ortho(0.0f, uiSize * m_camera.GetAspect(), 0.0f,
+                                 uiSize, -10.0f, 10.0f);
+  shader.setMat4("u_projection", hudProj);
+  shader.setMat4("u_view", glm::mat4(1.0f));
+
+  glm::vec3 holdPos(5.0f, 20.0f, 5.0f);
+  BlockType held_type =
+      m_heldPiece.transform(&Tetromino::getType).value_or(BlockType::None);
+  _renderStaticPiece(held_type, holdPos, shader);
+
+  for (int i = 0; i < m_nextPieces.size(); ++i) {
+    glm::vec3 nextPos(5.0f, 15.0f - (i * 4.0f), 5.0f);
+    _renderStaticPiece(m_nextPieces[i].getType(), nextPos, shader);
+  }
 }
 
-bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise,
-                                   const Camera &camera) {
+bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise) {
   glm::ivec3 rotationAxis(0);
 
-  glm::vec3 cam_right = camera.GetRight();
-  glm::vec3 cam_front = camera.GetFront();
+  glm::vec3 cam_right = m_camera.GetRight();
+  glm::vec3 cam_front = m_camera.GetFront();
   cam_right.y = 0;
   cam_front.y = 0;
 
@@ -178,9 +208,9 @@ bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise,
   return true;
 }
 
-bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
-  glm::vec3 cam_right = camera.GetRight();
-  glm::vec3 cam_front = camera.GetFront();
+bool TetrisManager::moveRelative(RelativeDir direction) {
+  glm::vec3 cam_right = m_camera.GetRight();
+  glm::vec3 cam_front = m_camera.GetFront();
 
   cam_right.y = 0;
   cam_front.y = 0;
@@ -219,6 +249,22 @@ bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
   }
 
   return true;
+}
+
+void TetrisManager::hold() {
+  if (!m_canHold)
+    return;
+
+  if (!m_heldPiece.has_value()) {
+    m_heldPiece = std::move(m_activePiece);
+    _spawnPiece();
+  } else {
+    m_nextPieces.push_front(std::move(m_heldPiece.value()));
+    m_heldPiece = std::move(m_activePiece);
+    _spawnPiece();
+  }
+
+  m_canHold = false;
 }
 
 void TetrisManager::hardDrop() {
@@ -264,6 +310,8 @@ void TetrisManager::_performCommitSequence() {
   } else {
     _finalizeSpawn();
   }
+
+  m_canHold = true;
 }
 
 void TetrisManager::_finalizeSpawn() {
@@ -309,12 +357,6 @@ void TetrisManager::_checkLayerClears(std::vector<int> &layers_cleared) {
   }
 }
 
-std::vector<int> TetrisManager::_checkLayerClears() {
-  std::vector<int> layers_cleared;
-  _checkLayerClears(layers_cleared);
-  return layers_cleared;
-}
-
 void TetrisManager::_collapseLayers(const std::vector<int> &layers_cleared) {
   if (layers_cleared.empty()) {
     return;
@@ -354,14 +396,18 @@ void TetrisManager::_collapseLayers(const std::vector<int> &layers_cleared) {
 bool TetrisManager::_spawnPiece() {
   glm::ivec3 startPos = {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2};
 
-  m_activePiece = _getRandomPiece(startPos);
+  while (m_nextPieces.size() < NEXT_PIECES_CAP) {
+    m_nextPieces.push_back(_getRandomPiece(startPos));
+  }
+
+  m_activePiece = m_nextPieces.front();
+  m_nextPieces.pop_front();
 
   while (!_checkValidPiece(m_activePiece)) {
     glm::ivec3 currentPos = m_activePiece.getPosition();
     currentPos.y -= 1;
     m_activePiece.setPosition(currentPos);
 
-    // there nothing we can do, let other function handle it
     if (currentPos.y >= SPACE_HEIGHT + 4) {
       return false;
     }
@@ -574,8 +620,37 @@ void TetrisManager::_setupBuffers() {
   glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(TetrominoVertex));
 }
 
+void TetrisManager::_renderStaticPiece(BlockType type, glm::vec3 world_pos,
+                                       const Shader &shader) {
+  switch (type) {
+  case BlockType::Boundary:
+  case BlockType::Ghost:
+  case BlockType::None:
+    return;
+  }
+
+  TetrominoData data = TetrominoFactory::getConfig(type);
+  glm::vec4 color = glm::vec4(data.color, 1.0f);
+
+  float time = (float)glfwGetTime();
+  glm::mat4 rotation =
+      glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.2f, 1.0f, 0.0f));
+
+  for (const auto &offset : data.offsets) {
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, world_pos);
+    model = model * rotation;
+    model = glm::translate(model, glm::vec3(offset));
+
+    shader.setMat4("u_model", model);
+    shader.setVec4("u_color", color);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+  }
+}
+
 void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec4 color,
                               const Shader &shader) {
+
   glm::mat4 model = glm::translate(glm::mat4(1.0f), world_pos);
   shader.setMat4("u_model", model);
   shader.setVec4("u_color", color);

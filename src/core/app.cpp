@@ -14,13 +14,13 @@ void App::render(double delta_time) {
 
   m_game.update(delta_time);
 
-  m_game.render(m_camera, delta_time);
+  m_game.render(delta_time);
   m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
 }
 
 App::App(GLFWwindow *window)
     : m_window(window), m_camera(glm::vec3(0.0f, 10.0f, 30.0f)),
-      m_camera_controller(m_camera) {
+      m_camera_controller(m_camera), m_game(m_camera) {
 
   glfwSetWindowUserPointer(m_window, (void *)this);
 
@@ -31,7 +31,7 @@ App::App(GLFWwindow *window)
   glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
 
   _setupShaders();
-  _setupUIElements();
+  // _setupUIElements();
 
   int width, height;
   glfwGetWindowSize(m_window, &width, &height);
@@ -90,38 +90,42 @@ void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
     switch (key) {
     case GLFW_KEY_UP:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::PITCH, true, m_camera);
+        m_game.rotateRelative(RelativeRotation::PITCH, true);
       else
-        m_game.moveRelative(RelativeDir::BACK, m_camera);
+        m_game.moveRelative(RelativeDir::BACK);
       break;
 
     case GLFW_KEY_DOWN:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::PITCH, false, m_camera);
+        m_game.rotateRelative(RelativeRotation::PITCH, false);
       else
-        m_game.moveRelative(RelativeDir::FORWARD, m_camera);
+        m_game.moveRelative(RelativeDir::FORWARD);
       break;
 
     case GLFW_KEY_LEFT:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::ROLL, true, m_camera);
+        m_game.rotateRelative(RelativeRotation::ROLL, true);
       else if (ctrl)
-        m_game.rotateRelative(RelativeRotation::Y_AXIS, true, m_camera);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, true);
       else
-        m_game.moveRelative(RelativeDir::LEFT, m_camera);
+        m_game.moveRelative(RelativeDir::LEFT);
       break;
 
     case GLFW_KEY_RIGHT:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::ROLL, false, m_camera);
+        m_game.rotateRelative(RelativeRotation::ROLL, false);
       else if (ctrl)
-        m_game.rotateRelative(RelativeRotation::Y_AXIS, false, m_camera);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, false);
       else
-        m_game.moveRelative(RelativeDir::RIGHT, m_camera);
+        m_game.moveRelative(RelativeDir::RIGHT);
       break;
 
     case GLFW_KEY_ENTER:
       m_game.hardDrop();
+      break;
+
+    case GLFW_KEY_H:
+      m_game.hold();
       break;
     }
   }

@@ -8,6 +8,7 @@
 #include "shader.h"
 #include "ui/grid_box.hpp"
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <optional>
@@ -18,8 +19,7 @@ concept IVec3Range = std::ranges::input_range<R> &&
 
 class TetrisManager {
 public:
-  enum class GameState { FALLING, LOCKING, CLEARING, GAME_OVER };
-
+  enum class GameState : uint8_t { FALLING, LOCKING, CLEARING, GAME_OVER };
   enum class RelativeDir : uint8_t { LEFT, RIGHT, FORWARD, BACK };
   enum class RelativeRotation : uint8_t { Y_AXIS, PITCH, ROLL };
 
@@ -27,26 +27,31 @@ public:
   static const size_t SPACE_HEIGHT = 20;
   static const size_t SPACE_DEPTH = 10;
 
+  static const size_t NEXT_PIECES_CAP = 3;
+  static constexpr const double MAX_DROP_DELAY = 0.05;
+  static constexpr const double MAX_LOCK_DELAY = 0.5;
+  static constexpr const double MAX_COLLASPE_DELAY = 0.2;
+  static const int MAX_LOCK_RESETS = 15;
+
 private:
   TetrisSpace<SPACE_WIDTH, SPACE_HEIGHT, SPACE_DEPTH> m_space;
   GridBox m_gridBox{SPACE_WIDTH, SPACE_HEIGHT, SPACE_DEPTH};
+
+  const Camera &m_camera;
 
   // States
   Tetromino m_activePiece;
   GameState m_state = GameState::FALLING;
   std::deque<Tetromino> m_nextPieces;
   bool m_isSoftDropping = false;
-  std::optional<BlockType> m_holded_piece;
+  std::optional<Tetromino> m_heldPiece;
+  bool m_canHold = true;
   uint8_t m_level = 0;
   uint64_t m_score = 0;
 
   std::vector<int> m_pendingClearLayers;
 
-  const double MAX_DROP_DELAY = 0.05;
-  const double MAX_LOCK_DELAY = 0.5;
-  const double MAX_COLLASPE_DELAY = 0.2;
-  const int MAX_LOCK_RESETS = 15;
-
+  // timers / counters for gamestate tracking
   double m_dropTimer = 0;
   double m_lockTimer = 0.0;
   double m_collapseTimer = 0.0;
@@ -62,20 +67,15 @@ private:
   GLuint m_vbo = 0;
 
 public:
-  TetrisManager();
+  TetrisManager(const Camera &camera);
   ~TetrisManager();
-  void render(const Camera &camera, double delta_time);
+  void render(double delta_time);
   void update(double delta_time);
 
-  // Control activePiece
-  // bool rotateX(bool clockwise = true);
-  // bool rotateY(bool clockwise = true);
-  // bool rotateZ(bool clockwise = true);
+  bool rotateRelative(RelativeRotation type, bool clockwise);
+  bool moveRelative(RelativeDir direction);
 
-  bool rotateRelative(RelativeRotation type, bool clockwise,
-                      const Camera &camera);
-  bool moveRelative(RelativeDir direction, const Camera &camera);
-
+  void hold();
   void hardDrop();
 
   void setSoftDrop(bool is_soft_dropping);
@@ -84,13 +84,15 @@ private:
   void _commit();
   void _performCommitSequence();
   void _finalizeSpawn();
-  std::vector<int> _checkLayerClears();
+  bool _spawnPiece();
+
   void _checkLayerClears(std::vector<int> &layers_cleared);
   void _collapseLayers(const std::vector<int> &layers_cleared);
-  bool _spawnPiece();
+
   glm::ivec3 _calculateDropOffset();
-  void _updateDepthMap();
   bool _moveDown();
+  void _updateDepthMap();
+
   bool _checkValidPiece(const Tetromino &moved_piece) const;
   bool _checkValidPiecePosition(IVec3Range auto &&positions) const;
 
@@ -101,5 +103,7 @@ private:
 
   static Tetromino _getRandomPiece(glm::ivec3 spawn_grid_pos);
   void _setupBuffers();
+  void _renderStaticPiece(BlockType type, glm::vec3 world_pos,
+                          const Shader &shader);
   void _drawCell(glm::vec3 world_pos, glm::vec4 color, const Shader &shader);
 };

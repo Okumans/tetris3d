@@ -17,11 +17,11 @@ enum class BlockType : uint8_t {
   Pyramid,
   RightStep,
   Boundary,
-  Ghost,
   Corner3D,
   Pillar3D,
   Cross3D,
   Stair3D,
+  Ghost,
   Debug5x5
 };
 

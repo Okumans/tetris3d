@@ -66,8 +66,11 @@ public:
   }
 
   glm::mat4 GetProjectionMatrix() const {
-    float aspect = (m_sceneHeight > 0) ? (m_sceneWidth / m_sceneHeight) : 1.0f;
-    return glm::perspective(glm::radians(Zoom), aspect, 0.1f, 100.0f);
+    return glm::perspective(glm::radians(Zoom), GetAspect(), 0.1f, 100.0f);
+  }
+
+  float GetAspect() const {
+    return (m_sceneHeight > 0) ? (m_sceneWidth / m_sceneHeight) : 1.0f;
   }
 
   // Input Processing
