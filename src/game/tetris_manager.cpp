@@ -11,35 +11,75 @@
 #include <glm/gtx/hash.hpp>
 
 #include <algorithm>
+#include <limits>
 #include <print>
 #include <random>
 #include <ranges>
-#include <utility>
 #include <vector>
 
-TetrisManager::TetrisManager() : m_activePiece(_get_random_piece()) {
+TetrisManager::TetrisManager() : m_activePiece(_getRandomPiece({0, 0, 0})) {
+  _spawnPiece();
   _setupBuffers();
 }
 
 TetrisManager::~TetrisManager() {}
 
 void TetrisManager::update(double delta_time) {
+  if (m_state == GameState::GAME_OVER)
+    return;
+
   double base_speed =
       std::max(0.05, m_baseDropDelay - (m_level * m_delayDecreaseRate));
   double current_tick_delay =
       m_isSoftDropping ? (base_speed / 10.0) : base_speed;
 
-  m_dropTimer += delta_time;
+  // Falling or Locking
+  if (m_state == GameState::FALLING || m_state == GameState::LOCKING) {
+    m_dropTimer += delta_time;
 
-  while (m_dropTimer >= current_tick_delay) {
-    m_dropTimer -= current_tick_delay;
+    while (m_dropTimer >= current_tick_delay) {
+      m_dropTimer -= current_tick_delay;
 
-    if (!_moveDown()) {
+      if (!_moveDown()) {
+        // Hit floor, start the grace period
+        m_state = GameState::LOCKING;
+      } else {
+        // If successfully moved down (Falling again)
+        if (m_state == GameState::LOCKING)
+          m_state = GameState::FALLING;
+      }
+    }
+  }
 
-      // check if line clear, then commit the operation (move this pice to the
-      // tetris space)
-      _commit();
-      _spawnPiece();
+  // Clearing
+  if (m_state == GameState::CLEARING) {
+    std::println("clearing {}", m_collapseTimer);
+
+    m_collapseTimer += delta_time;
+
+    if (m_collapseTimer >= MAX_COLLASPE_DELAY) {
+      _collapseLayers(m_pendingClearLayers);
+      m_pendingClearLayers.clear();
+
+      if (!_spawnPiece()) {
+        m_state = GameState::GAME_OVER;
+
+        // TODO: do someething with gameover thing
+        std::println("i think you lose my bro");
+      } else {
+        m_state = GameState::FALLING;
+      }
+    }
+
+    return;
+  }
+
+  // Locking
+  if (m_state == GameState::LOCKING) {
+    m_lockTimer += delta_time;
+
+    if (m_lockTimer >= MAX_LOCK_DELAY) {
+      _performCommitSequence();
     }
   }
 }
@@ -62,14 +102,24 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
 
   // Draw On Grid Piece
   for (int y = 0; y < SPACE_HEIGHT; ++y) {
+    bool is_clearing = std::ranges::find(m_pendingClearLayers, y) !=
+                       m_pendingClearLayers.end();
+
     for (int x = 0; x < SPACE_WIDTH; ++x) {
       for (int z = 0; z < SPACE_DEPTH; ++z) {
         const GridCell &cell = m_space.at(x, y, z);
 
         if (cell.isOccupied()) {
           glm::vec3 world_pos = m_space.gridToWorld(x, y, z);
-          glm::vec4 color =
-              glm::vec4(TetrominoFactory::getColor(cell.type), 1.0f);
+
+          glm::vec4 color;
+
+          if (is_clearing) {
+            color = glm::vec4(TetrominoFactory::getColor(cell.type), 0.7);
+          } else {
+            color = glm::vec4(TetrominoFactory::getColor(cell.type), 1.0f);
+          }
+
           _drawCell(world_pos, color, shader);
         }
       }
@@ -87,9 +137,6 @@ void TetrisManager::render(const Camera &camera, double delta_time) {
   // Draw Preview Piece
   glm::vec4 preview_piece_color(m_activePiece.getColor() * 1.7f, 0.2f);
   glm::ivec3 preview_relative_pos = _calculateDropOffset();
-
-  std::println("({},{},{})", preview_relative_pos.x, preview_relative_pos.y,
-               preview_relative_pos.z);
 
   for (glm::ivec3 grid_pos :
        m_activePiece.tryMoveRelative(preview_relative_pos)) {
@@ -131,40 +178,6 @@ bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise,
   return true;
 }
 
-// Control activePiece
-// bool TetrisManager::rotateX(bool clockwise) {
-//   m_activePiece.rotateX(clockwise);
-//
-//   if (!_checkValidPiece(m_activePiece)) {
-//     m_activePiece.rotateX(!clockwise);
-//     return false;
-//   }
-//
-//   return true;
-// }
-//
-// bool TetrisManager::rotateY(bool clockwise) {
-//   m_activePiece.rotateY(clockwise);
-//
-//   if (!_checkValidPiece(m_activePiece)) {
-//     m_activePiece.rotateY(!clockwise);
-//     return false;
-//   }
-//
-//   return true;
-// }
-//
-// bool TetrisManager::rotateZ(bool clockwise) {
-//   m_activePiece.rotateZ(clockwise);
-//
-//   if (!_checkValidPiece(m_activePiece)) {
-//     m_activePiece.rotateZ(!clockwise);
-//     return false;
-//   }
-//
-//   return true;
-// }
-
 bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
   glm::vec3 cam_right = camera.GetRight();
   glm::vec3 cam_front = camera.GetFront();
@@ -197,12 +210,26 @@ bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
 
   m_activePiece.moveRelative(gridMove);
 
+  // Give the player more time
+  if (m_state == GameState::LOCKING) {
+    if (m_lockMoveResetCount < MAX_LOCK_RESETS) {
+      m_lockTimer = 0.0;
+      m_lockMoveResetCount++;
+    }
+  }
+
   return true;
 }
 
 void TetrisManager::hardDrop() {
+  if (m_state == GameState::CLEARING || m_state == GameState::GAME_OVER) {
+    return;
+  }
+
   glm::ivec3 drop_offset = _calculateDropOffset();
   m_activePiece.moveRelative(drop_offset);
+
+  _performCommitSequence();
 }
 
 void TetrisManager::setSoftDrop(bool is_soft_dropping) {
@@ -211,6 +238,10 @@ void TetrisManager::setSoftDrop(bool is_soft_dropping) {
 
 void TetrisManager::_commit() {
   for (glm::ivec3 cell_position : m_activePiece.getGlobalPositions()) {
+    if (!m_space.checkInBound(cell_position.x, cell_position.y,
+                              cell_position.z))
+      continue;
+
     m_space.at(cell_position.x, cell_position.y, cell_position.z).type =
         m_activePiece.getType();
 
@@ -220,43 +251,124 @@ void TetrisManager::_commit() {
   }
 }
 
-bool TetrisManager::_checkLineClears() {
-  // Reuse memory across calls to avoid heap allocations
-  static std::vector<int> unique_y;
-  unique_y.clear();
+void TetrisManager::_performCommitSequence() {
+  _commit();
+  m_lockTimer = 0.0;
+  m_lockMoveResetCount = 0;
 
-  // 1. Collect unique Y levels from the active piece
+  _checkLayerClears(m_pendingClearLayers);
+
+  if (!m_pendingClearLayers.empty()) {
+    m_state = GameState::CLEARING;
+    m_collapseTimer = 0.0;
+  } else {
+    _finalizeSpawn();
+  }
+}
+
+void TetrisManager::_finalizeSpawn() {
+  if (!_spawnPiece()) {
+    m_state = GameState::GAME_OVER;
+    std::println("i think you lose my bro");
+  } else {
+    m_state = GameState::FALLING;
+  }
+}
+
+void TetrisManager::_checkLayerClears(std::vector<int> &layers_cleared) {
+  static std::vector<int> unique_y;
+
+  unique_y.clear();
+  layers_cleared.clear();
+
   for (const auto &pos : m_activePiece.getGlobalPositions()) {
-    // Since there are only 4 blocks, a linear search is faster than hashing
     if (std::ranges::find(unique_y, pos.y) == unique_y.end()) {
       unique_y.push_back(pos.y);
     }
   }
 
-  bool clearedAnything = false;
-
-  // 2. Check each level
   for (int y : unique_y) {
-    int occupiedCount = 0;
+    bool is_plane_full = true;
+
     for (int x = 0; x < SPACE_WIDTH; ++x) {
       for (int z = 0; z < SPACE_DEPTH; ++z) {
-        if (m_space.at(x, y, z).isOccupied()) {
-          occupiedCount++;
+        if (!m_space.checkInBound(x, y, z)) {
+          continue;
+        }
+
+        if (m_space.at(x, y, z).isEmpty()) {
+          is_plane_full = false;
+          break;
         }
       }
     }
 
-    // Must be a full 10x10 plane (or whatever your dimensions are)
-    if (occupiedCount == (SPACE_WIDTH * SPACE_DEPTH)) {
-      // _performClear(y);
-      clearedAnything = true;
+    if (is_plane_full) {
+      layers_cleared.push_back(y);
+    }
+  }
+}
+
+std::vector<int> TetrisManager::_checkLayerClears() {
+  std::vector<int> layers_cleared;
+  _checkLayerClears(layers_cleared);
+  return layers_cleared;
+}
+
+void TetrisManager::_collapseLayers(const std::vector<int> &layers_cleared) {
+  if (layers_cleared.empty()) {
+    return;
+  }
+
+  int write_y = 0;
+
+  for (int read_y = 0; read_y < SPACE_HEIGHT; ++read_y) {
+    if (std::ranges::find(layers_cleared, read_y) != layers_cleared.end()) {
+      continue;
+    }
+
+    if (read_y != write_y) {
+      // copy layer y at read_y to write_y
+      for (int x = 0; x < SPACE_WIDTH; ++x) {
+        for (int z = 0; z < SPACE_DEPTH; ++z) {
+          m_space.at(x, write_y, z) = m_space.at(x, read_y, z);
+        }
+      }
+    }
+
+    write_y++;
+  }
+
+  // claer layer y at write_y
+  for (int y = write_y; y < SPACE_HEIGHT; ++y) {
+    for (int x = 0; x < SPACE_WIDTH; ++x) {
+      for (int z = 0; z < SPACE_DEPTH; ++z) {
+        m_space.at(x, write_y, z).clear();
+      }
     }
   }
 
-  return clearedAnything;
+  _updateDepthMap();
 }
 
-void TetrisManager::_spawnPiece() { m_activePiece = _get_random_piece(); }
+bool TetrisManager::_spawnPiece() {
+  glm::ivec3 startPos = {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2};
+
+  m_activePiece = _getRandomPiece(startPos);
+
+  while (!_checkValidPiece(m_activePiece)) {
+    glm::ivec3 currentPos = m_activePiece.getPosition();
+    currentPos.y -= 1;
+    m_activePiece.setPosition(currentPos);
+
+    // there nothing we can do, let other function handle it
+    if (currentPos.y >= SPACE_HEIGHT + 4) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 void TetrisManager::_updateDepthMap() {
   for (int x = 0; x < SPACE_WIDTH; ++x) {
@@ -276,14 +388,14 @@ void TetrisManager::_updateDepthMap() {
 // Returns relative distance to the dropped position
 // can used with Tetromino::moveRelative, or tryMoveRelative
 glm::ivec3 TetrisManager::_calculateDropOffset() {
+  int max_floor_y = std::numeric_limits<int>::lowest();
+  int min_relative_y = std::numeric_limits<int>::max();
 
-  int max_floor_y =
-      std::ranges::max(m_activePiece.getGlobalPositions() |
-                       std::views::transform([this](glm::ivec3 pos) {
-                         return this->m_depth_map[pos.x][pos.z];
-                       }));
-  int min_relative_y =
-      std::ranges::min(m_activePiece.getOffsets(), {}, &glm::ivec3::y).y;
+  for (const auto &[offset, pos] : std::views::zip(
+           m_activePiece.getOffsets(), m_activePiece.getGlobalPositions())) {
+    max_floor_y = std::max(max_floor_y, offset.y);
+    min_relative_y = std::min(min_relative_y, pos.y);
+  }
 
   glm::ivec3 preview_relative_pos(0);
 
@@ -369,19 +481,18 @@ void TetrisManager::_applyGlobalRotation(glm::ivec3 axis, bool clockwise) {
     m_activePiece.rotateZ(axis.z > 0 ? clockwise : !clockwise);
 }
 
-Tetromino TetrisManager::_get_random_piece() {
+Tetromino TetrisManager::_getRandomPiece(glm::ivec3 spawn_grid_pos) {
   static std::mt19937 gen(std::random_device{}());
 
   std::uniform_int_distribution<int> dist(
+      // static_cast<int>(BlockType::Debug5x5),
+      // static_cast<int>(BlockType::Debug5x5)
       static_cast<int>(BlockType::Straight),
-      static_cast<int>(BlockType::RightStep));
+      static_cast<int>(BlockType::Stair3D));
 
-  BlockType randomType = static_cast<BlockType>(dist(gen));
+  BlockType random_type = static_cast<BlockType>(dist(gen));
 
-  glm::ivec3 spawnGridPos = {SPACE_WIDTH / 2, SPACE_HEIGHT - 1,
-                             SPACE_DEPTH / 2};
-
-  return Tetromino(randomType, spawnGridPos);
+  return Tetromino(random_type, spawn_grid_pos);
 }
 
 void TetrisManager::_setupBuffers() {

@@ -35,6 +35,8 @@ public:
   std::generator<glm::ivec3> tryMoveRelative(glm::ivec3 direction) const;
   void moveRelative(glm::ivec3 direction);
 
+  void setPosition(glm::ivec3 pos);
+
   std::generator<glm::ivec3> getGlobalPositions() const;
   const std::vector<glm::ivec3> &getOffsets() const;
   glm::vec3 getColor() const;

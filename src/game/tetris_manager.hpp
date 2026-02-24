@@ -18,6 +18,8 @@ concept IVec3Range = std::ranges::input_range<R> &&
 
 class TetrisManager {
 public:
+  enum class GameState { FALLING, LOCKING, CLEARING, GAME_OVER };
+
   enum class RelativeDir : uint8_t { LEFT, RIGHT, FORWARD, BACK };
   enum class RelativeRotation : uint8_t { Y_AXIS, PITCH, ROLL };
 
@@ -31,16 +33,27 @@ private:
 
   // States
   Tetromino m_activePiece;
+  GameState m_state = GameState::FALLING;
   std::deque<Tetromino> m_nextPieces;
   bool m_isSoftDropping = false;
   std::optional<BlockType> m_holded_piece;
   uint8_t m_level = 0;
   uint64_t m_score = 0;
+
+  std::vector<int> m_pendingClearLayers;
+
+  const double MAX_DROP_DELAY = 0.05;
+  const double MAX_LOCK_DELAY = 0.5;
+  const double MAX_COLLASPE_DELAY = 0.2;
+  const int MAX_LOCK_RESETS = 15;
+
   double m_dropTimer = 0;
+  double m_lockTimer = 0.0;
+  double m_collapseTimer = 0.0;
+  int m_lockMoveResetCount = 0;
 
   // Properties
   double m_baseDropDelay = 1.0;
-  double m_maxDropDelay = 0.05;
   double m_delayDecreaseRate = 0.1;
 
   std::array<std::array<int, SPACE_WIDTH>, SPACE_DEPTH> m_depth_map;
@@ -69,8 +82,12 @@ public:
 
 private:
   void _commit();
-  bool _checkLineClears();
-  void _spawnPiece();
+  void _performCommitSequence();
+  void _finalizeSpawn();
+  std::vector<int> _checkLayerClears();
+  void _checkLayerClears(std::vector<int> &layers_cleared);
+  void _collapseLayers(const std::vector<int> &layers_cleared);
+  bool _spawnPiece();
   glm::ivec3 _calculateDropOffset();
   void _updateDepthMap();
   bool _moveDown();
@@ -82,7 +99,7 @@ private:
   std::generator<glm::ivec3> _tryApplyGlobalRotation(glm::ivec3 axis,
                                                      bool clockwise) const;
 
-  static Tetromino _get_random_piece();
+  static Tetromino _getRandomPiece(glm::ivec3 spawn_grid_pos);
   void _setupBuffers();
   void _drawCell(glm::vec3 world_pos, glm::vec4 color, const Shader &shader);
 };

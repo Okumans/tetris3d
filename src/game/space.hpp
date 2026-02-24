@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <glm/glm.hpp>
+#include <print>
 #include <vector>
 
 enum class BlockType : uint8_t {
@@ -15,7 +17,12 @@ enum class BlockType : uint8_t {
   Pyramid,
   RightStep,
   Boundary,
-  Ghost
+  Ghost,
+  Corner3D,
+  Pillar3D,
+  Cross3D,
+  Stair3D,
+  Debug5x5
 };
 
 struct GridCell {
@@ -47,12 +54,19 @@ TetrisSpace<WIDTH, HEIGHT, DEPTH>::TetrisSpace()
 
 template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
 GridCell &TetrisSpace<WIDTH, HEIGHT, DEPTH>::at(int x, int y, int z) {
+  if (!checkInBound(x, y, z)) {
+    std::println("error try to access space at ({}, {}, {})", x, y, z);
+  }
+
   return m_cells[x + y * WIDTH + z * WIDTH * HEIGHT];
 }
 
 template <size_t WIDTH, size_t HEIGHT, size_t DEPTH>
 const GridCell &TetrisSpace<WIDTH, HEIGHT, DEPTH>::at(int x, int y,
                                                       int z) const {
+  if (!checkInBound(x, y, z)) {
+    std::println("error try to access space at ({}, {}, {})", x, y, z);
+  }
   return m_cells[x + y * WIDTH + z * WIDTH * HEIGHT];
 }
 

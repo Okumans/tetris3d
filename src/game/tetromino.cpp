@@ -121,6 +121,8 @@ std::generator<glm::ivec3> Tetromino::getGlobalPositions() const {
   }
 }
 
+void Tetromino::setPosition(glm::ivec3 pos) { m_position = pos; }
+
 glm::vec3 Tetromino::getColor() const { return m_color; }
 glm::ivec3 Tetromino::getPosition() const { return m_position; }
 BlockType Tetromino::getType() const { return m_type; }
@@ -132,23 +134,31 @@ const std::vector<glm::ivec3> &Tetromino::getOffsets() const {
 glm::vec3 TetrominoFactory::getColor(BlockType type) {
   switch (type) {
   case BlockType::Straight:
-    return {0.0f, 1.0f, 1.0f}; // Cyan
+    return {0.45f, 0.85f, 0.90f}; // Soft Sky Blue (Cyan)
   case BlockType::Square:
-    return {1.0f, 1.0f, 0.0f}; // Yellow
+    return {0.95f, 0.90f, 0.45f}; // Pale Mustard (Yellow)
   case BlockType::Pyramid:
-    return {0.5f, 0.0f, 0.5f}; // Purple
+    return {0.75f, 0.55f, 0.85f}; // Soft Lavender (Purple)
   case BlockType::LeftSnake:
-    return {0.0f, 0.0f, 1.0f}; // Blue
+    return {0.40f, 0.60f, 0.95f}; // Cornflower Blue
   case BlockType::RightSnake:
-    return {1.0f, 0.5f, 0.0f}; // Orange
+    return {1.00f, 0.70f, 0.45f}; // Peach/Creamsicle (Orange)
   case BlockType::LeftStep:
-    return {0.0f, 1.0f, 0.0f}; // Green
+    return {0.55f, 0.85f, 0.55f}; // Sage Green
   case BlockType::RightStep:
-    return {1.0f, 0.0f, 0.0f}; // Red
+    return {0.90f, 0.50f, 0.55f}; // Dusty Rose (Red)
   case BlockType::Ghost:
-    return {0.5f, 0.5f, 0.5f}; // Gray
+    return {0.75f, 0.75f, 0.80f}; // Muted Slate (Gray)
+  case BlockType::Corner3D:
+    return {0.95f, 0.65f, 0.75f}; // Pink Sherbet
+  case BlockType::Pillar3D:
+    return {0.60f, 0.95f, 0.85f}; // Mint Crystal
+  case BlockType::Cross3D:
+    return {1.00f, 0.85f, 0.60f}; // Soft Apricot
+  case BlockType::Stair3D:
+    return {0.80f, 0.80f, 0.95f}; // Periwinkle
   default:
-    return {1.0f, 1.0f, 1.0f}; // White
+    return {0.95f, 0.95f, 0.95f}; // Off-White
   }
 }
 
@@ -170,6 +180,39 @@ TetrominoData TetrominoFactory::getConfig(BlockType type) {
     return {type, {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {-1, 1, 0}}, color};
   case BlockType::RightStep:
     return {type, {{0, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {1, 1, 0}}, color};
+  case BlockType::Corner3D:
+    return {type, {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}}, color};
+  case BlockType::Pillar3D:
+    return {type,
+            {{0, 0, 0},
+             {1, 0, 0},
+             {0, 1, 0},
+             {1, 1, 0},
+             {0, 0, 1},
+             {1, 0, 1},
+             {0, 1, 1},
+             {1, 1, 1}},
+            color};
+  case BlockType::Cross3D:
+    return {type,
+            {{0, 0, 0},
+             {1, 0, 0},
+             {-1, 0, 0},
+             {0, 1, 0},
+             {0, -1, 0},
+             {0, 0, 1},
+             {0, 0, -1}},
+            color};
+  case BlockType::Stair3D:
+    return {type, {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}}, color};
+  case BlockType::Debug5x5:
+    return {type,
+            {{-2, -2, 0}, {-1, -2, 0}, {0, -2, 0}, {1, -2, 0}, {2, -2, 0},
+             {-2, -1, 0}, {-1, -1, 0}, {0, -1, 0}, {1, -1, 0}, {2, -1, 0},
+             {-2, 0, 0},  {-1, 0, 0},  {0, 0, 0},  {1, 0, 0},  {2, 0, 0},
+             {-2, 1, 0},  {-1, 1, 0},  {0, 1, 0},  {1, 1, 0},  {2, 1, 0},
+             {-2, 2, 0},  {-1, 2, 0},  {0, 2, 0},  {1, 2, 0},  {2, 2, 0}},
+            color};
   default:
     return {BlockType::None, {}, color};
   }
