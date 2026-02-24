@@ -24,12 +24,6 @@ TetrisManager::TetrisManager(const Camera &camera)
       m_activePiece(_getRandomPiece(
           {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2})) {
 
-  // popluate m_nextPieces
-  for (int i = 0; i < NEXT_PIECES_CAP; ++i) {
-    m_nextPieces.push_back(
-        _getRandomPiece({SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2}));
-  }
-
   _spawnPiece();
   _setupBuffers();
 }
@@ -623,7 +617,6 @@ void TetrisManager::_setupBuffers() {
 void TetrisManager::_renderStaticPiece(BlockType type, glm::vec3 world_pos,
                                        const Shader &shader) {
   switch (type) {
-  case BlockType::Boundary:
   case BlockType::Ghost:
   case BlockType::None:
     return;

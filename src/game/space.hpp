@@ -16,7 +16,6 @@ enum class BlockType : uint8_t {
   LeftStep,
   Pyramid,
   RightStep,
-  Boundary,
   Corner3D,
   Pillar3D,
   Cross3D,
