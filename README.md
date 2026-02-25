@@ -2,6 +2,8 @@
 
 A 3D implementation of the classic Tetris game, built with C++23 and OpenGL.
 
+https://github.com/user-attachments/assets/f12dece9-ecb4-4bf1-a1fa-e7970d30aab1
+
 ## Features
 
 - **3D Gameplay:** Play Tetris in a 3D grid (10x10x20).
