@@ -442,7 +442,7 @@ glm::ivec3 TetrisManager::_calculateDropOffset() {
   int start_y = max_floor_y - min_relative_y;
   int current_y = m_activePiece.getPosition().y;
 
-  for (int y = start_y; y < current_y; ++y) {
+  for (int y = start_y; y <= current_y; ++y) {
     glm::ivec3 relative_pos(0, y - current_y, 0);
 
     if (_checkValidPiecePosition(m_activePiece.tryMoveRelative(relative_pos))) {
