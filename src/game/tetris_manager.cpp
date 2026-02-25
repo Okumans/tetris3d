@@ -134,21 +134,22 @@ void TetrisManager::render(double delta_time) {
 
   // Draw Active Piece
   glm::vec4 active_piece_color(m_activePiece.getColor(), 1.0f);
+
   for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
     glm::vec3 world_pos =
         m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
     _drawCell(world_pos, active_piece_color, shader);
   }
 
-  // Draw Preview Piece
-  glm::vec4 preview_piece_color(m_activePiece.getColor() * 1.7f, 0.2f);
-  glm::ivec3 preview_relative_pos = _calculateDropOffset();
+  // Draw Ghost Piece
+  glm::vec4 ghost_piece_color(m_activePiece.getColor(), 1.0f);
+  glm::ivec3 ghost_relative_pos = _calculateDropOffset();
 
   for (glm::ivec3 grid_pos :
-       m_activePiece.tryMoveRelative(preview_relative_pos)) {
+       m_activePiece.tryMoveRelative(ghost_relative_pos)) {
     glm::vec3 world_pos =
         m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
-    _drawCell(world_pos, preview_piece_color, shader);
+    _drawCell(world_pos, ghost_piece_color, shader, true);
   }
 
   // Work around For renderig next Pieces (not perm)
@@ -437,7 +438,7 @@ glm::ivec3 TetrisManager::_calculateDropOffset() {
     min_relative_y = std::min(min_relative_y, pos.y);
   }
 
-  glm::ivec3 preview_relative_pos(0);
+  glm::ivec3 ghost_relative_pos(0);
 
   int start_y = max_floor_y - min_relative_y;
   int current_y = m_activePiece.getPosition().y;
@@ -636,17 +637,21 @@ void TetrisManager::_renderStaticPiece(BlockType type, glm::vec3 world_pos,
     model = glm::translate(model, glm::vec3(offset));
 
     shader.setMat4("u_model", model);
+    shader.setBool("u_isGhost", false);
     shader.setVec4("u_color", color);
+    shader.setFloat("u_time", time);
     glDrawArrays(GL_TRIANGLES, 0, 36);
   }
 }
 
 void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec4 color,
-                              const Shader &shader) {
+                              const Shader &shader, bool is_ghost_piece) {
 
   glm::mat4 model = glm::translate(glm::mat4(1.0f), world_pos);
   shader.setMat4("u_model", model);
   shader.setVec4("u_color", color);
+  shader.setFloat("u_time", glfwGetTime());
+  shader.setFloat("u_isGhost", is_ghost_piece);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }

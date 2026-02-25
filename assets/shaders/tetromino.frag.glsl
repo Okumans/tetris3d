@@ -8,40 +8,47 @@ in vec2 TexCoords;
 
 uniform vec4 u_color;
 uniform vec3 u_viewPos;
+uniform float u_time;
+uniform bool u_isGhost;
 
 void main() {
-  // 1. Separate RGB and Alpha for control
   vec3 baseColor = u_color.rgb;
   float alpha = u_color.a;
 
-  // 2. Ambient Lighting
-  float ambientStrength = 0.3;
-  vec3 ambient = ambientStrength * baseColor;
-
-  // 3. Diffuse Lighting
   vec3 norm = normalize(Normal);
-  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-  float diff = max(dot(norm, lightDir), 0.0);
-  vec3 diffuse = diff * baseColor;
-
-  // 4. Rim Lighting (Glow at edges)
   vec3 viewDir = normalize(u_viewPos - FragPos);
-  float rim = 1.0 - max(dot(viewDir, norm), 0.0);
-  rim = pow(rim, 3.0);
-  vec3 rimLight = rim * vec3(1.0) * 0.2; // Keep this vec3 to avoid affecting alpha
 
-  // 5. Combine Lighting (RGB only)
-  vec3 combinedRGB = ambient + diffuse + rimLight;
+  if (u_isGhost) {
+    float edge = step(0.95, TexCoords.x) + step(0.95, TexCoords.y) +
+        step(TexCoords.x, 0.05) + step(TexCoords.y, 0.05);
+    edge = clamp(edge, 0.0, 1.0);
 
-  // 6. Apply Vignette/Bevel logic to the RGB
-  float edgeWidth = 0.05;
-  float vignette = smoothstep(0.0, edgeWidth, TexCoords.x)
-      * smoothstep(1.0, 1.0 - edgeWidth, TexCoords.x)
-      * smoothstep(0.0, edgeWidth, TexCoords.y)
-      * smoothstep(1.0, 1.0 - edgeWidth, TexCoords.y);
+    vec3 ghostColor = baseColor;
+    float ghostAlpha = mix(0.1, 0.6, edge);
 
-  combinedRGB *= (0.8 + 0.2 * vignette);
+    FragColor = vec4(ghostColor, ghostAlpha * alpha);
+  }
 
-  // 7. Final Result: Use the calculated RGB and the ORIGINAL Alpha
-  FragColor = vec4(combinedRGB, alpha);
+  else {
+    float ambientStrength = 0.35;
+    vec3 ambient = ambientStrength * baseColor;
+
+    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5));
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * baseColor;
+
+    float rim = pow(1.0 - max(dot(viewDir, norm), 0.0), 3.0);
+    vec3 rimLight = rim * vec3(1.0) * 0.2;
+
+    vec3 combinedRGB = ambient + diffuse + rimLight;
+
+    // Bevel look
+    float edgeWidth = 0.05;
+    float vignette = smoothstep(0.0, edgeWidth, TexCoords.x)
+        * smoothstep(1.0, 1.0 - edgeWidth, TexCoords.x)
+        * smoothstep(0.0, edgeWidth, TexCoords.y)
+        * smoothstep(1.0, 1.0 - edgeWidth, TexCoords.y);
+
+    FragColor = vec4(combinedRGB * (0.8 + 0.2 * vignette), alpha);
+  }
 }

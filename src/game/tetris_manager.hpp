@@ -103,7 +103,11 @@ private:
 
   static Tetromino _getRandomPiece(glm::ivec3 spawn_grid_pos);
   void _setupBuffers();
+
+  // should be move and render out of TetrisManager render(), into app render()
+  // instead
   void _renderStaticPiece(BlockType type, glm::vec3 world_pos,
                           const Shader &shader);
-  void _drawCell(glm::vec3 world_pos, glm::vec4 color, const Shader &shader);
+  void _drawCell(glm::vec3 world_pos, glm::vec4 color, const Shader &shader,
+                 bool is_ghost_piece = false);
 };
