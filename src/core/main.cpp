@@ -54,7 +54,7 @@ GLFWwindow *initialize_window(int width, int height, const char *title) {
 //_________________________________________________MAIN______________________________________________________________//
 
 int main(int argc, char *argv[]) {
-  GLFWwindow *window = initialize_window(800, 600, "Simple Paint");
+  GLFWwindow *window = initialize_window(800, 600, "tetris 3D");
 
   double last_frame_time = glfwGetTime();
 
