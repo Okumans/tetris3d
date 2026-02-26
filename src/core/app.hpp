@@ -39,8 +39,11 @@ private:
   CameraController m_camera_controller;
 
   AppState m_appState;
+
   TetrisManager m_game;
   UIManager m_uiManager;
+
+  TetrisUIRenderer m_gameUIRenderer;
 
 public:
   App(GLFWwindow *window);

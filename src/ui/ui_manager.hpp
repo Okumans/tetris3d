@@ -53,6 +53,7 @@ public:
                   std::function<void(UIElement *)> cb);
 
   UIElement *getElement(const std::string &name) const;
+  GLuint getVAO() const;
 
   bool handleClick(double pos_x, double pos_y);
 

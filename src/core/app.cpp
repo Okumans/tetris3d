@@ -1,26 +1,78 @@
+#define STB_IMAGE_IMPLEMENTATION
 #include "core/app.hpp"
 #include "GLFW/glfw3.h"
 #include "core/camera_controller.hpp"
 #include "core/shader_manager.hpp"
+#include "external/stb_image.h"
+#include "game/space.hpp"
 #include "game/tetris_manager.hpp"
+#include "game/tetromino.hpp"
 #include "glad/gl.h"
+#include "glm/fwd.hpp"
 #include "ui/ui_manager.hpp"
-#include <print>
+
+GLuint load_texture(const char *path) {
+  GLuint textureID;
+  glGenTextures(1, &textureID);
+
+  int width, height, nrComponents;
+  // stbi_set_flip_vertically_on_load(true);
+  unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+  if (data) {
+    GLenum format;
+    if (nrComponents == 1)
+      format = GL_RED;
+    else if (nrComponents == 3)
+      format = GL_RGB;
+    else if (nrComponents == 4)
+      format = GL_RGBA;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+                 GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                    GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_image_free(data);
+  } else {
+    std::cout << "Texture failed to load at path: " << path << std::endl;
+    stbi_image_free(data);
+  }
+
+  return textureID;
+}
 
 void App::render(double delta_time) {
 
   _handleProcessInput(delta_time);
   m_camera_controller.Update(delta_time);
-
   m_game.update(delta_time);
 
-  m_game.render(delta_time);
+  m_game.render(delta_time, m_camera);
+
   m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
+
+  const Shader &tetromino_shader =
+      ShaderManager::getShader(ShaderType::TETROMINO);
+  const Shader &ui_shader = ShaderManager::getShader(ShaderType::UI);
+
+  m_gameUIRenderer.renderHoldPiece(
+      m_game.getHold().transform(&Tetromino::getType).value_or(BlockType::None),
+      {5.0f, 10.0f, 0.0f}, tetromino_shader, ui_shader, 1.2f);
+  m_gameUIRenderer.renderPieceQueue(m_game.getPiecesQueue(),
+                                    {5.0f, 30.0f, 0.0f}, 5.0f, tetromino_shader,
+                                    ui_shader);
 }
 
 App::App(GLFWwindow *window)
     : m_window(window), m_camera(glm::vec3(0.0f, 10.0f, 30.0f)),
-      m_camera_controller(m_camera), m_game(m_camera) {
+      m_camera_controller(m_camera),
+      m_gameUIRenderer(m_game.getVAO(), m_uiManager.getVAO(), m_camera) {
 
   glfwSetWindowUserPointer(m_window, (void *)this);
 
@@ -31,7 +83,7 @@ App::App(GLFWwindow *window)
   glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
 
   _setupShaders();
-  // _setupUIElements();
+  _setupUIElements();
 
   int width, height;
   glfwGetWindowSize(m_window, &width, &height);
@@ -50,12 +102,13 @@ void App::_setupShaders() {
 }
 
 void App::_setupUIElements() {
-  m_uiManager.addElement("test_click", {10, 10, 50, 50}, {0.0f, 1.0f, 0.0f},
-                         [this](UIElement *self) {
-                           std::println("Hello world everyone, from ({}, {})",
-                                        this->m_appState.inputState.mouseLastX,
-                                        this->m_appState.inputState.mouseLastY);
-                         });
+  GLuint next_tex = load_texture(ICONS_PATH "/next.png");
+  GLuint hold_tex = load_texture(ICONS_PATH "/hold.png");
+
+  m_uiManager.addElement("next", {90, 120, 200, 80}, next_tex,
+                         [this](UIElement *self) {});
+  m_uiManager.addElement("hold", {90, 890, 200, 80}, hold_tex,
+                         [this](UIElement *self) { this->m_game.hold(); });
 }
 
 void App::_handleProcessInput(double delta_time) {
@@ -90,34 +143,34 @@ void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
     switch (key) {
     case GLFW_KEY_UP:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::PITCH, true);
+        m_game.rotateRelative(RelativeRotation::PITCH, true, m_camera);
       else
-        m_game.moveRelative(RelativeDir::BACK);
+        m_game.moveRelative(RelativeDir::BACK, m_camera);
       break;
 
     case GLFW_KEY_DOWN:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::PITCH, false);
+        m_game.rotateRelative(RelativeRotation::PITCH, false, m_camera);
       else
-        m_game.moveRelative(RelativeDir::FORWARD);
+        m_game.moveRelative(RelativeDir::FORWARD, m_camera);
       break;
 
     case GLFW_KEY_LEFT:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::ROLL, true);
+        m_game.rotateRelative(RelativeRotation::ROLL, true, m_camera);
       else if (ctrl)
-        m_game.rotateRelative(RelativeRotation::Y_AXIS, true);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, true, m_camera);
       else
-        m_game.moveRelative(RelativeDir::LEFT);
+        m_game.moveRelative(RelativeDir::LEFT, m_camera);
       break;
 
     case GLFW_KEY_RIGHT:
       if (shift)
-        m_game.rotateRelative(RelativeRotation::ROLL, false);
+        m_game.rotateRelative(RelativeRotation::ROLL, false, m_camera);
       else if (ctrl)
-        m_game.rotateRelative(RelativeRotation::Y_AXIS, false);
+        m_game.rotateRelative(RelativeRotation::Y_AXIS, false, m_camera);
       else
-        m_game.moveRelative(RelativeDir::RIGHT);
+        m_game.moveRelative(RelativeDir::RIGHT, m_camera);
       break;
 
     case GLFW_KEY_ENTER:

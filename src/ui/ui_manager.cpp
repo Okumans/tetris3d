@@ -50,6 +50,8 @@ UIElement *UIManager::getElement(const std::string &name) const {
   return nullptr;
 }
 
+GLuint UIManager::getVAO() const { return m_vao; }
+
 bool UIManager::handleClick(double mouseX, double mouseY) {
   auto it_end = m_elements.upper_bound({(float)mouseX, 0, 0, 0});
 

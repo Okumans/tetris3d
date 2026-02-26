@@ -1,27 +1,28 @@
 #include "tetris_manager.hpp"
-#include "GLFW/glfw3.h"
+#include "camera.h"
 #include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
 #include "game/space.hpp"
 #include "game/tetromino.hpp"
-#include "glm/fwd.hpp"
 #include "shader.h"
 
 #include <glad/gl.h>
+
+#include <GLFW/glfw3.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <print>
 #include <random>
 #include <ranges>
 #include <utility>
 #include <vector>
 
-TetrisManager::TetrisManager(const Camera &camera)
-    : m_camera(camera),
-      m_activePiece(_getRandomPiece(
+TetrisManager::TetrisManager()
+    : m_activePiece(_getRandomPiece(
           {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2})) {
 
   _spawnPiece();
@@ -90,93 +91,36 @@ void TetrisManager::update(double delta_time) {
   }
 }
 
-void TetrisManager::render(double delta_time) {
+void TetrisManager::render(double delta_time, const Camera &camera) {
   glEnable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
 
   Shader shader = ShaderManager::getShader(ShaderType::TETROMINO);
   shader.use();
 
-  shader.setVec3("u_viewPos", m_camera.Position);
-  shader.setMat4("u_view", m_camera.GetViewMatrix());
-  shader.setMat4("u_projection", m_camera.GetProjectionMatrix());
+  shader.setVec3("u_viewPos", camera.Position);
+  shader.setMat4("u_view", camera.GetViewMatrix());
+  shader.setMat4("u_projection", camera.GetProjectionMatrix());
 
-  shader.setMat4("u_model", glm::mat4(1.0f));
-  shader.setVec4("u_color", glm::vec4(0.5f, 0.5f, 0.5f, 0.7f)); // Grey outline
-  m_gridBox.render(m_camera.GetViewMatrix(), m_camera.GetProjectionMatrix());
-
+  _renderGrid(shader, camera.GetViewMatrix(), camera.GetProjectionMatrix());
   glBindVertexArray(m_vao);
 
   // Draw On Grid Piece
-  for (int y = 0; y < SPACE_HEIGHT; ++y) {
-    bool is_clearing = std::ranges::find(m_pendingClearLayers, y) !=
-                       m_pendingClearLayers.end();
-
-    for (int x = 0; x < SPACE_WIDTH; ++x) {
-      for (int z = 0; z < SPACE_DEPTH; ++z) {
-        const GridCell &cell = m_space.at(x, y, z);
-
-        if (cell.isOccupied()) {
-          glm::vec3 world_pos = m_space.gridToWorld(x, y, z);
-
-          glm::vec4 color;
-
-          if (is_clearing) {
-            color = glm::vec4(TetrominoFactory::getColor(cell.type), 0.7);
-          } else {
-            color = glm::vec4(TetrominoFactory::getColor(cell.type), 1.0f);
-          }
-
-          _drawCell(world_pos, color, shader);
-        }
-      }
-    }
-  }
+  _renderOnGridPiece(shader);
 
   // Draw Active Piece
-  glm::vec4 active_piece_color(m_activePiece.getColor(), 1.0f);
-
-  for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
-    glm::vec3 world_pos =
-        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
-    _drawCell(world_pos, active_piece_color, shader);
-  }
+  _renderActivePiece(shader);
 
   // Draw Ghost Piece
-  glm::vec4 ghost_piece_color(m_activePiece.getColor(), 1.0f);
-  glm::ivec3 ghost_relative_pos = _calculateDropOffset();
-
-  for (glm::ivec3 grid_pos :
-       m_activePiece.tryMoveRelative(ghost_relative_pos)) {
-    glm::vec3 world_pos =
-        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
-    _drawCell(world_pos, ghost_piece_color, shader, true);
-  }
-
-  // Work around For renderig next Pieces (not perm)
-
-  glClear(GL_DEPTH_BUFFER_BIT);
-  float uiSize = 40.0f;
-  glm::mat4 hudProj = glm::ortho(0.0f, uiSize * m_camera.GetAspect(), 0.0f,
-                                 uiSize, -10.0f, 10.0f);
-  shader.setMat4("u_projection", hudProj);
-  shader.setMat4("u_view", glm::mat4(1.0f));
-
-  glm::vec3 holdPos(5.0f, 20.0f, 5.0f);
-  BlockType held_type =
-      m_heldPiece.transform(&Tetromino::getType).value_or(BlockType::None);
-  _renderStaticPiece(held_type, holdPos, shader);
-
-  for (int i = 0; i < m_nextPieces.size(); ++i) {
-    glm::vec3 nextPos(5.0f, 15.0f - (i * 4.0f), 5.0f);
-    _renderStaticPiece(m_nextPieces[i].getType(), nextPos, shader);
-  }
+  _renderGhostPiece(shader);
 }
 
-bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise) {
+bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise,
+                                   const Camera &camera) {
   glm::ivec3 rotationAxis(0);
 
-  glm::vec3 cam_right = m_camera.GetRight();
-  glm::vec3 cam_front = m_camera.GetFront();
+  glm::vec3 cam_right = camera.GetRight();
+  glm::vec3 cam_front = camera.GetFront();
   cam_right.y = 0;
   cam_front.y = 0;
 
@@ -203,9 +147,9 @@ bool TetrisManager::rotateRelative(RelativeRotation type, bool clockwise) {
   return true;
 }
 
-bool TetrisManager::moveRelative(RelativeDir direction) {
-  glm::vec3 cam_right = m_camera.GetRight();
-  glm::vec3 cam_front = m_camera.GetFront();
+bool TetrisManager::moveRelative(RelativeDir direction, const Camera &camera) {
+  glm::vec3 cam_right = camera.GetRight();
+  glm::vec3 cam_front = camera.GetFront();
 
   cam_right.y = 0;
   cam_front.y = 0;
@@ -254,7 +198,7 @@ void TetrisManager::hold() {
     m_heldPiece = std::move(m_activePiece);
     _spawnPiece();
   } else {
-    m_nextPieces.push_front(std::move(m_heldPiece.value()));
+    m_piecesQueue.push_front(std::move(m_heldPiece.value()));
     m_heldPiece = std::move(m_activePiece);
     _spawnPiece();
   }
@@ -275,6 +219,15 @@ void TetrisManager::hardDrop() {
 
 void TetrisManager::setSoftDrop(bool is_soft_dropping) {
   m_isSoftDropping = is_soft_dropping;
+}
+
+const Tetromino &TetrisManager::getActivePiece() const { return m_activePiece; }
+
+const std::deque<Tetromino> &TetrisManager::getPiecesQueue() const {
+  return m_piecesQueue;
+}
+const std::optional<Tetromino> &TetrisManager::getHold() const {
+  return m_heldPiece;
 }
 
 void TetrisManager::_commit() {
@@ -391,12 +344,12 @@ void TetrisManager::_collapseLayers(const std::vector<int> &layers_cleared) {
 bool TetrisManager::_spawnPiece() {
   glm::ivec3 startPos = {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2};
 
-  while (m_nextPieces.size() < NEXT_PIECES_CAP) {
-    m_nextPieces.push_back(_getRandomPiece(startPos));
+  while (m_piecesQueue.size() < PIECES_QUEUE_CAP) {
+    m_piecesQueue.push_back(_getRandomPiece(startPos));
   }
 
-  m_activePiece = m_nextPieces.front();
-  m_nextPieces.pop_front();
+  m_activePiece = m_piecesQueue.front();
+  m_piecesQueue.pop_front();
 
   while (!_checkValidPiece(m_activePiece)) {
     glm::ivec3 currentPos = m_activePiece.getPosition();
@@ -536,6 +489,62 @@ Tetromino TetrisManager::_getRandomPiece(glm::ivec3 spawn_grid_pos) {
   return Tetromino(random_type, spawn_grid_pos);
 }
 
+void TetrisManager::_renderGrid(const Shader &shader, const glm::mat4 &view,
+                                const glm::mat4 &proj) {
+  shader.setMat4("u_model", glm::mat4(1.0f));
+  shader.setVec4("u_color", glm::vec4(0.5f, 0.5f, 0.5f, 0.7f)); // Grey outline
+  m_gridBox.render(view, proj);
+}
+
+void TetrisManager::_renderOnGridPiece(const Shader &shader) {
+  for (int y = 0; y < SPACE_HEIGHT; ++y) {
+    bool is_clearing = std::ranges::find(m_pendingClearLayers, y) !=
+                       m_pendingClearLayers.end();
+
+    for (int x = 0; x < SPACE_WIDTH; ++x) {
+      for (int z = 0; z < SPACE_DEPTH; ++z) {
+        const GridCell &cell = m_space.at(x, y, z);
+
+        if (cell.isOccupied()) {
+          glm::vec3 world_pos = m_space.gridToWorld(x, y, z);
+
+          glm::vec4 color;
+
+          if (is_clearing) {
+            color = glm::vec4(TetrominoFactory::getColor(cell.type), 0.7);
+          } else {
+            color = glm::vec4(TetrominoFactory::getColor(cell.type), 1.0f);
+          }
+
+          _drawCell(world_pos, color, shader);
+        }
+      }
+    }
+  }
+}
+
+void TetrisManager::_renderActivePiece(const Shader &shader) {
+  glm::vec4 active_piece_color(m_activePiece.getColor(), 1.0f);
+
+  for (glm::ivec3 grid_pos : m_activePiece.getGlobalPositions()) {
+    glm::vec3 world_pos =
+        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
+    _drawCell(world_pos, active_piece_color, shader);
+  }
+}
+
+void TetrisManager::_renderGhostPiece(const Shader &shader) {
+  glm::vec4 ghost_piece_color(m_activePiece.getColor(), 1.0f);
+  glm::ivec3 ghost_relative_pos = _calculateDropOffset();
+
+  for (glm::ivec3 grid_pos :
+       m_activePiece.tryMoveRelative(ghost_relative_pos)) {
+    glm::vec3 world_pos =
+        m_space.gridToWorld(grid_pos.x, grid_pos.y, grid_pos.z);
+    _drawCell(world_pos, ghost_piece_color, shader, true);
+  }
+}
+
 void TetrisManager::_setupBuffers() {
   TetrominoVertex cubeVertices[] = {
       // Back face (Normal: 0, 0, -1)
@@ -615,34 +624,34 @@ void TetrisManager::_setupBuffers() {
   glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(TetrominoVertex));
 }
 
-void TetrisManager::_renderStaticPiece(BlockType type, glm::vec3 world_pos,
-                                       const Shader &shader) {
-  switch (type) {
-  case BlockType::Ghost:
-  case BlockType::None:
-    return;
-  }
-
-  TetrominoData data = TetrominoFactory::getConfig(type);
-  glm::vec4 color = glm::vec4(data.color, 1.0f);
-
-  float time = (float)glfwGetTime();
-  glm::mat4 rotation =
-      glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.2f, 1.0f, 0.0f));
-
-  for (const auto &offset : data.offsets) {
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, world_pos);
-    model = model * rotation;
-    model = glm::translate(model, glm::vec3(offset));
-
-    shader.setMat4("u_model", model);
-    shader.setBool("u_isGhost", false);
-    shader.setVec4("u_color", color);
-    shader.setFloat("u_time", time);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-  }
-}
+// void TetrisManager::_renderStaticPiece(BlockType type, glm::vec3 world_pos,
+//                                        const Shader &shader) {
+//   switch (type) {
+//   case BlockType::Ghost:
+//   case BlockType::None:
+//     return;
+//   }
+//
+//   TetrominoData data = TetrominoFactory::getConfig(type);
+//   glm::vec4 color = glm::vec4(data.color, 1.0f);
+//
+//   float time = (float)glfwGetTime();
+//   glm::mat4 rotation =
+//       glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.2f, 1.0f, 0.0f));
+//
+//   for (const auto &offset : data.offsets) {
+//     glm::mat4 model = glm::mat4(1.0f);
+//     model = glm::translate(model, world_pos);
+//     model = model * rotation;
+//     model = glm::translate(model, glm::vec3(offset));
+//
+//     shader.setMat4("u_model", model);
+//     shader.setBool("u_isGhost", false);
+//     shader.setVec4("u_color", color);
+//     shader.setFloat("u_time", time);
+//     glDrawArrays(GL_TRIANGLES, 0, 36);
+//   }
+// }
 
 void TetrisManager::_drawCell(glm::vec3 world_pos, glm::vec4 color,
                               const Shader &shader, bool is_ghost_piece) {
