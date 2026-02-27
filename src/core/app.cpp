@@ -105,10 +105,9 @@ void App::_setupUIElements() {
   GLuint next_tex = load_texture(ICONS_PATH "/next.png");
   GLuint hold_tex = load_texture(ICONS_PATH "/hold.png");
 
-  m_uiManager.addElement("next", {90, 120, 200, 80}, next_tex,
-                         [this](UIElement *self) {});
-  m_uiManager.addElement("hold", {90, 890, 200, 80}, hold_tex,
-                         [this](UIElement *self) { this->m_game.hold(); });
+  m_uiManager.addStaticElement("next", {30, 70, 200, 80}, next_tex);
+  m_uiManager.addInteractiveElement("hold", {30, 600, 200, 80}, hold_tex,
+                                    [this]() { this->m_game.hold(); });
 }
 
 void App::_handleProcessInput(double delta_time) {
@@ -186,7 +185,8 @@ void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
 
 // internal event handler
 void App::_handleMouseMoveCallback(double pos_x, double pos_y) {
-  // Reserve for future controls
+  m_appState.inputState.mouseLastX = pos_x;
+  m_appState.inputState.mouseLastY = pos_y;
 }
 
 void App::_handleMouseClickCallback(int button, int action, int mods) {

@@ -5,20 +5,50 @@
 
 #include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
+#include "glm/fwd.hpp"
 
-// UIElement
-UIElement::UIElement(std::string name, UIHitbox box, glm::vec3 color,
-                     std::function<void(UIElement *)> cb)
-    : name(std::move(name)), hitbox(box), onClick(std::move(cb)), color(color),
-      hasTexture(false) {}
+// StaticElement
+StaticElement::StaticElement(std::string name, UIHitbox box, glm::vec3 color)
+    : color(color), hasTexture(false) {
+  this->name = std::move(name);
+  this->bounds = box;
+}
 
-UIElement::UIElement(std::string name, UIHitbox box, GLuint texID,
-                     std::function<void(UIElement *)> cb)
-    : name(std::move(name)), hitbox(box), onClick(std::move(cb)),
-      textureID(texID), hasTexture(true) {}
+StaticElement::StaticElement(std::string name, UIHitbox box, GLuint tex_id)
+    : textureID(tex_id), hasTexture(true) {
+  this->name = std::move(name);
+  this->bounds = box;
+}
+
+void StaticElement::draw(const Shader &shader) {
+  glm::mat4 model = glm::mat4(1.0f);
+  model = glm::translate(model, glm::vec3(bounds.x, bounds.y, 0.0f));
+  model = glm::scale(model, glm::vec3(bounds.w, bounds.h, 1.0f));
+
+  shader.setMat4("u_model", model);
+  shader.setVec3("u_color", color);
+  shader.setBool("u_hasTexture", hasTexture);
+
+  if (hasTexture) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    shader.setInt("u_icon", 0);
+  }
+
+  glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+// InteractiveElement
+InteractiveElement::InteractiveElement(std::string name, UIHitbox box,
+                                       GLuint tex_id, std::function<void()> cb)
+    : StaticElement(std::move(name), box, tex_id), onClick(std::move(cb)) {}
+
+InteractiveElement::InteractiveElement(std::string name, UIHitbox box,
+                                       glm::vec3 color,
+                                       std::function<void()> cb)
+    : StaticElement(std::move(name), box, color), onClick(std::move(cb)) {}
 
 // UIManager
-
 UIManager::UIManager() { _setup_buffers(); }
 
 UIManager::~UIManager() {
@@ -26,48 +56,42 @@ UIManager::~UIManager() {
   glDeleteVertexArrays(1, &m_vao);
 }
 
-void UIManager::addElement(std::string name, UIHitbox box, glm::vec3 color,
-                           std::function<void(UIElement *)> cb) {
-  auto el =
-      std::make_unique<UIElement>(std::move(name), box, color, std::move(cb));
-  m_elements.emplace(box, std::move(el));
+void UIManager::addStaticElement(std::string name, UIHitbox box,
+                                 glm::vec3 color) {
+  m_elements.push_back(
+      std::make_unique<StaticElement>(std::move(name), box, color));
 }
 
-void UIManager::addElement(std::string name, UIHitbox box, GLuint texID,
-                           std::function<void(UIElement *)> cb) {
-  auto el =
-      std::make_unique<UIElement>(std::move(name), box, texID, std::move(cb));
-  m_elements.emplace(box, std::move(el));
+void UIManager::addStaticElement(std::string name, UIHitbox box,
+                                 GLuint tex_id) {
+  m_elements.push_back(
+      std::make_unique<StaticElement>(std::move(name), box, tex_id));
 }
 
-UIElement *UIManager::getElement(const std::string &name) const {
-  for (auto &[_, element] : m_elements) {
-    if (element->name == name) {
-      return element.get();
-    }
-  }
-
-  return nullptr;
+void UIManager::addInteractiveElement(std::string name, UIHitbox box,
+                                      GLuint tex_id, std::function<void()> cb) {
+  auto element = std::make_unique<InteractiveElement>(std::move(name), box,
+                                                      tex_id, std::move(cb));
+  m_interactives.push_back(element.get());
+  m_elements.push_back(std::move(element));
 }
 
-GLuint UIManager::getVAO() const { return m_vao; }
+void UIManager::addInteractiveElement(std::string name, UIHitbox box,
+                                      glm::vec3 color,
+                                      std::function<void()> cb) {
+  auto element = std::make_unique<InteractiveElement>(std::move(name), box,
+                                                      color, std::move(cb));
+  m_interactives.push_back(element.get());
+  m_elements.push_back(std::move(element));
+}
 
 bool UIManager::handleClick(double mouseX, double mouseY) {
-  auto it_end = m_elements.upper_bound({(float)mouseX, 0, 0, 0});
-
-  auto it = it_end;
-  while (it != m_elements.begin()) {
-    --it;
-    const UIHitbox &box = it->first;
-
-    // Pruning: if the element ends before the mouseX, we can stop
-    // (Since we are iterating backwards from X > mouseX)
-    if (box.x + box.w < mouseX)
-      break;
-
-    if (box.contains(mouseX, mouseY)) {
-      it->second->onClick(it->second.get());
-      return true;
+  for (auto it = m_interactives.rbegin(); it != m_interactives.rend(); ++it) {
+    if ((*it)->bounds.contains(mouseX, mouseY)) {
+      if ((*it)->onClick) {
+        (*it)->onClick();
+        return true;
+      }
     }
   }
   return false;
@@ -82,35 +106,19 @@ void UIManager::render(int windowWidth, int windowHeight) {
   shader.setMat4("u_projection", projection);
 
   glDisable(GL_DEPTH_TEST);
-
-  // For icons/transparency
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
   glBindVertexArray(m_vao);
 
-  for (const auto &pair : m_elements) {
-    const UIHitbox &box = pair.first;
-    const auto &el = pair.second;
-
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(box.x, box.y, 0.0f));
-    model = glm::scale(model, glm::vec3(box.w, box.h, 1.0f));
-
-    shader.setMat4("u_model", model);
-    shader.setVec3("u_color", el->color);
-    shader.setBool("u_hasTexture", el->hasTexture);
-
-    if (el->hasTexture) {
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, el->textureID);
-      shader.setInt("u_icon", 0);
-    }
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+  for (const auto &el : m_elements) {
+    el->draw(shader);
   }
 
   glEnable(GL_DEPTH_TEST);
 }
+
+GLuint UIManager::getVAO() const { return m_vao; }
 
 void UIManager::_setup_buffers() {
   UIVertex vertices[] = {
