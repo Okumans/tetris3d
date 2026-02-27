@@ -95,7 +95,7 @@ void TetrisManager::render(double delta_time, const Camera &camera) {
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_BLEND);
 
-  Shader shader = ShaderManager::getShader(ShaderType::TETROMINO);
+  Shader &shader = ShaderManager::getShader(ShaderType::TETROMINO);
   shader.use();
 
   shader.setVec3("u_viewPos", camera.Position);

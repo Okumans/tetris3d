@@ -92,6 +92,12 @@ public:
     if (geometryPath != nullptr)
       glDeleteShader(geometry);
   }
+
+  ~Shader() { glDeleteShader(ID); }
+  Shader(const Shader &) = delete;
+  Shader &operator=(const Shader &) = delete;
+  Shader(Shader &&other) noexcept : ID(other.ID) { other.ID = 0; }
+
   // activate the shader
   // ------------------------------------------------------------------------
   void use() const { glUseProgram(ID); }

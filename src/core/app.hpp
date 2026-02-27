@@ -70,6 +70,6 @@ private:
   void _handleScrollCallback(double offset_x, double offset_y);
   void _handleFramebufferSizeCallback(int width, int height);
 
-  void _setupShaders();
+  void _setupResources();
   void _setupUIElements();
 };

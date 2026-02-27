@@ -1,51 +1,14 @@
-#define STB_IMAGE_IMPLEMENTATION
 #include "core/app.hpp"
 #include "GLFW/glfw3.h"
 #include "core/camera_controller.hpp"
 #include "core/shader_manager.hpp"
-#include "external/stb_image.h"
+#include "core/texture_manager.hpp"
 #include "game/space.hpp"
 #include "game/tetris_manager.hpp"
 #include "game/tetromino.hpp"
 #include "glad/gl.h"
 #include "glm/fwd.hpp"
 #include "ui/ui_manager.hpp"
-
-GLuint load_texture(const char *path) {
-  GLuint textureID;
-  glGenTextures(1, &textureID);
-
-  int width, height, nrComponents;
-  // stbi_set_flip_vertically_on_load(true);
-  unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
-  if (data) {
-    GLenum format;
-    if (nrComponents == 1)
-      format = GL_RED;
-    else if (nrComponents == 3)
-      format = GL_RGB;
-    else if (nrComponents == 4)
-      format = GL_RGBA;
-
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
-                 GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    stbi_image_free(data);
-  } else {
-    std::cout << "Texture failed to load at path: " << path << std::endl;
-    stbi_image_free(data);
-  }
-
-  return textureID;
-}
 
 void App::render(double delta_time) {
 
@@ -82,7 +45,7 @@ App::App(GLFWwindow *window)
   glfwSetScrollCallback(m_window, _glfwScrollCallback);
   glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
 
-  _setupShaders();
+  _setupResources();
   _setupUIElements();
 
   int width, height;
@@ -94,19 +57,23 @@ App::App(GLFWwindow *window)
 
 App::~App() = default;
 
-void App::_setupShaders() {
+void App::_setupResources() {
   ShaderManager::loadShader(ShaderType::UI, UI_VERTEX_SHADER_PATH,
                             UI_FRAGMENT_SHADER_PATH);
   ShaderManager::loadShader(ShaderType::TETROMINO, TETROMINO_VERTEX_SHADER_PATH,
                             TETROMINO_FRAGMENT_SHADER_PATH);
+
+  TextureManager::loadTexture(TextureType::NEXT, ICONS_PATH "/next.png");
+  TextureManager::loadTexture(TextureType::HOLD, ICONS_PATH "/hold.png");
 }
 
 void App::_setupUIElements() {
-  GLuint next_tex = load_texture(ICONS_PATH "/next.png");
-  GLuint hold_tex = load_texture(ICONS_PATH "/hold.png");
+  Texture &next_tex = TextureManager::getTexture(TextureType::NEXT);
+  Texture &hold_tex = TextureManager::getTexture(TextureType::HOLD);
 
-  m_uiManager.addStaticElement("next", {30, 70, 200, 80}, next_tex);
-  m_uiManager.addInteractiveElement("hold", {30, 600, 200, 80}, hold_tex,
+  m_uiManager.addStaticElement("next", {30, 70, 200, 80}, next_tex.getTexID());
+  m_uiManager.addInteractiveElement("hold", {30, 600, 200, 80},
+                                    hold_tex.getTexID(),
                                     [this]() { this->m_game.hold(); });
 }
 
