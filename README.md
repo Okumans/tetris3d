@@ -2,7 +2,7 @@
 
 A 3D implementation of the classic Tetris game, built with C++23 and OpenGL.
 
-https://github.com/user-attachments/assets/f12dece9-ecb4-4bf1-a1fa-e7970d30aab1
+https://github.com/user-attachments/assets/a31f58f4-0060-4e51-a127-0b489aa70b2b
 
 ## Features
 
