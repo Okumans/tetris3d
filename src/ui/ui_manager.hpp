@@ -20,6 +20,7 @@ class UIBase {
 public:
   std::string name;
   UIHitbox bounds;
+  bool visible = true;
 
 public:
   virtual ~UIBase() = default;

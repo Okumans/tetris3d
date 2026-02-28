@@ -149,7 +149,7 @@ bool UIManager::handleClick(double mouseX, double mouseY) {
   float vy = (float)mouseY * (m_virtualHeight / (float)m_lastWindowHeight);
 
   for (auto it = m_interactives.rbegin(); it != m_interactives.rend(); ++it) {
-    if ((*it)->bounds.contains(vx, vy)) {
+    if ((*it)->visible && (*it)->bounds.contains(vx, vy)) {
       if ((*it)->onClick) {
         (*it)->onClick();
         return true;
@@ -180,7 +180,8 @@ void UIManager::render(int windowWidth, int windowHeight) {
   glBindVertexArray(m_vao);
 
   for (const auto &el : m_elements) {
-    el->draw(shader);
+    if (el->visible)
+      el->draw(shader);
   }
 
   glEnable(GL_DEPTH_TEST);

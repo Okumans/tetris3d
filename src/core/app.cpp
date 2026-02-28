@@ -8,13 +8,104 @@
 #include "glad/gl.h"
 #include "glm/fwd.hpp"
 #include "ui/ui_manager.hpp"
+#include <print>
 
 void App::render(double delta_time) {
 
   _handleProcessInput(delta_time);
   m_camera_controller.Update(delta_time);
-  m_game.update(delta_time);
 
+  if (m_appState.gameStarted) {
+    m_game.update(delta_time);
+  }
+
+  _updateUIElements();
+
+  m_game.render(delta_time, m_camera);
+
+  const Shader &tetromino_shader =
+      ShaderManager::getShader(ShaderType::TETROMINO);
+  const Shader &ui_shader = ShaderManager::getShader(ShaderType::UI);
+
+  m_gameUIRenderer.renderHoldPiece(
+      m_game.getHold().transform(&Tetromino::getType).value_or(BlockType::None),
+      {5.0f, 10.0f, 0.0f}, tetromino_shader, ui_shader, 1.2f);
+  m_gameUIRenderer.renderPieceQueue(m_game.getPiecesQueue(),
+                                    {5.0f, 30.0f, 0.0f}, 5.0f, tetromino_shader,
+                                    ui_shader);
+
+  m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
+}
+
+App::App(GLFWwindow *window)
+    : m_window(window), m_camera(glm::vec3(0.0f, 10.0f, 30.0f)),
+      m_camera_controller(m_camera),
+      m_gameUIRenderer(m_game.getVAO(), m_uiManager.getVAO(), m_camera) {
+
+  glfwSetWindowUserPointer(m_window, (void *)this);
+
+  glfwSetKeyCallback(m_window, _glfwKeyCallback);
+  glfwSetCursorPosCallback(m_window, _glfwMouseMoveCallback);
+  glfwSetMouseButtonCallback(m_window, _glfwMouseButtonCallback);
+  glfwSetScrollCallback(m_window, _glfwScrollCallback);
+  glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
+
+  _setupResources();
+  _setupUIElements();
+
+  int width, height;
+  glfwGetWindowSize(m_window, &width, &height);
+
+  m_camera.UpdateSceneSize(width, height);
+  m_camera_controller.SetPreset(CameraPreset::FRONT);
+}
+
+App::~App() = default;
+
+void App::_setupResources() {
+  ShaderManager::loadShader(ShaderType::UI, UI_VERTEX_SHADER_PATH,
+                            UI_FRAGMENT_SHADER_PATH);
+  ShaderManager::loadShader(ShaderType::TETROMINO, TETROMINO_VERTEX_SHADER_PATH,
+                            TETROMINO_FRAGMENT_SHADER_PATH);
+
+  m_font.loadDefaultFont();
+}
+
+void App::_setupUIElements() {
+  // Virtual coordinates: Y is 0 to 40.
+  m_uiManager.addTextElement("next_label", {3.0f, 4.0f, 0, 0}, "NEXT", m_font,
+                             glm::vec4(1.0f), 0.125f);
+
+  m_uiManager.addInteractiveElement("hold_btn", {2.0f, 24.0f, 6.0f, 2.0f},
+                                    glm::vec4(0.0f),
+                                    [this]() { this->m_game.hold(); });
+
+  m_uiManager.addTextElement("hold_label", {3.0f, 24.5f, 0, 0}, "HOLD", m_font,
+                             glm::vec4(1.0f), 0.125f);
+
+  // Score UI
+  m_uiManager.addTextElement("score_label", {3.0f, 32.0f, 0, 0}, "SCORE",
+                             m_font, glm::vec4(1.0f, 0.8f, 0.0f, 1.0f), 0.1f);
+  m_uiManager.addTextElement("score_value", {3.0f, 34.0f, 0, 0}, "0", m_font,
+                             glm::vec4(1.0f), 0.15f);
+
+  // Level UI
+  m_uiManager.addTextElement("level_label", {3.0f, 36.5f, 0, 0}, "LEVEL",
+                             m_font, glm::vec4(0.0f, 0.8f, 1.0f, 1.0f), 0.1f);
+  m_uiManager.addTextElement("level_value", {3.0f, 38.5f, 0, 0}, "0", m_font,
+                             glm::vec4(1.0f), 0.15f);
+
+  // Start Screen
+  m_uiManager.addInteractiveElement(
+      "darken_screen", {0.0f, 0.0f, 100, 40.0f}, {0.0f, 0.0f, 0.0f, 0.7f},
+      [this]() { this->m_appState.gameStarted = true; });
+
+  m_uiManager.addTextElement("start_message", {0.0f, 20.5f, 0, 0},
+                             "press any key to start!", m_font, glm::vec4(1.0f),
+                             0.15f);
+}
+
+void App::_updateUIElements() {
   // Update UI text and positions
   float vWidth = m_uiManager.getVirtualWidth();
   float rightMargin = 2.0f;
@@ -49,81 +140,21 @@ void App::render(double delta_time) {
     score_value->bounds.y = 7.5f;
   }
 
-  m_game.render(delta_time, m_camera);
+  if (auto darken_screen = dynamic_cast<InteractiveElement *>(
+          m_uiManager.getElement("darken_screen"))) {
+    darken_screen->bounds.w = vWidth;
+    darken_screen->visible = !m_appState.gameStarted;
+  }
 
-  m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
-
-  const Shader &tetromino_shader =
-      ShaderManager::getShader(ShaderType::TETROMINO);
-  const Shader &ui_shader = ShaderManager::getShader(ShaderType::UI);
-
-  m_gameUIRenderer.renderHoldPiece(
-      m_game.getHold().transform(&Tetromino::getType).value_or(BlockType::None),
-      {5.0f, 10.0f, 0.0f}, tetromino_shader, ui_shader, 1.2f);
-  m_gameUIRenderer.renderPieceQueue(m_game.getPiecesQueue(),
-                                    {5.0f, 30.0f, 0.0f}, 5.0f, tetromino_shader,
-                                    ui_shader);
-}
-
-App::App(GLFWwindow *window)
-    : m_window(window), m_camera(glm::vec3(0.0f, 10.0f, 30.0f)),
-      m_camera_controller(m_camera),
-      m_gameUIRenderer(m_game.getVAO(), m_uiManager.getVAO(), m_camera) {
-
-  glfwSetWindowUserPointer(m_window, (void *)this);
-
-  glfwSetKeyCallback(m_window, _glfwKeyCallback);
-  glfwSetCursorPosCallback(m_window, _glfwMouseMoveCallback);
-  glfwSetMouseButtonCallback(m_window, _glfwMouseButtonCallback);
-  glfwSetScrollCallback(m_window, _glfwScrollCallback);
-  glfwSetFramebufferSizeCallback(m_window, _glfwFramebufferSizeCallback);
-
-  _setupResources();
-  _setupUIElements();
-
-  int width, height;
-  glfwGetWindowSize(m_window, &width, &height);
-
-  m_camera.UpdateSceneSize(width, height);
-  m_camera_controller.SetPreset(CameraPreset::FRONT);
-}
-
-App::~App() = default;
-
-void App::_setupResources() {
-  ShaderManager::loadShader(ShaderType::UI, UI_VERTEX_SHADER_PATH,
-                            UI_FRAGMENT_SHADER_PATH);
-  ShaderManager::loadShader(ShaderType::TETROMINO, TETROMINO_VERTEX_SHADER_PATH,
-                            TETROMINO_FRAGMENT_SHADER_PATH);
-
-  // TextureManager::loadTexture(TextureType::NEXT, ICONS_PATH "/next.png");
-  // TextureManager::loadTexture(TextureType::HOLD, ICONS_PATH "/hold.png");
-  m_font.loadDefaultFont();
-}
-
-void App::_setupUIElements() {
-  // Virtual coordinates: Y is 0 to 40.
-  m_uiManager.addTextElement("next_label", {3.0f, 4.0f, 0, 0}, "NEXT", m_font,
-                             glm::vec4(1.0f), 0.125f);
-
-  m_uiManager.addInteractiveElement("hold_btn", {2.0f, 24.0f, 6.0f, 2.0f},
-                                    glm::vec4(0.0f),
-                                    [this]() { this->m_game.hold(); });
-
-  m_uiManager.addTextElement("hold_label", {3.0f, 24.5f, 0, 0}, "HOLD", m_font,
-                             glm::vec4(1.0f), 0.125f);
-
-  // Score UI
-  m_uiManager.addTextElement("score_label", {3.0f, 32.0f, 0, 0}, "SCORE",
-                             m_font, glm::vec4(1.0f, 0.8f, 0.0f, 1.0f), 0.1f);
-  m_uiManager.addTextElement("score_value", {3.0f, 34.0f, 0, 0}, "0", m_font,
-                             glm::vec4(1.0f), 0.15f);
-
-  // Level UI
-  m_uiManager.addTextElement("level_label", {3.0f, 36.5f, 0, 0}, "LEVEL",
-                             m_font, glm::vec4(0.0f, 0.8f, 1.0f, 1.0f), 0.1f);
-  m_uiManager.addTextElement("level_value", {3.0f, 38.5f, 0, 0}, "0", m_font,
-                             glm::vec4(1.0f), 0.15f);
+  if (auto start_message = dynamic_cast<TextElement *>(
+          m_uiManager.getElement("start_message"))) {
+    float w = m_font.getTextWidth(start_message->text, start_message->scale);
+    start_message->bounds.x = (vWidth - rightMargin - w) / 2;
+    start_message->bounds.y = 20.0f;
+    start_message->color.a =
+        0.3f + 0.7f * (0.5f * (std::cos(glfwGetTime() * 2.0) + 1.0f));
+    start_message->visible = !m_appState.gameStarted;
+  }
 }
 
 void App::_handleProcessInput(double delta_time) {
@@ -133,8 +164,10 @@ void App::_handleProcessInput(double delta_time) {
   bool up = glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS;
   bool down = glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS;
 
-  bool softDropActive = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS);
-  m_game.setSoftDrop(softDropActive);
+  if (m_appState.gameStarted) {
+    bool softDropActive = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS);
+    m_game.setSoftDrop(softDropActive);
+  }
 
   // Preset Selection
   if (glfwGetKey(m_window, GLFW_KEY_1) == GLFW_PRESS)
@@ -152,6 +185,11 @@ void App::_handleKeyCallback(int key, int scancode, int action, int mods) {
   using RelativeRotation = TetrisManager::RelativeRotation;
 
   if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+    if (!m_appState.gameStarted) {
+      m_appState.gameStarted = true;
+      return;
+    }
+
     bool shift = (mods & GLFW_MOD_SHIFT);
     bool ctrl = (mods & GLFW_MOD_CONTROL);
 

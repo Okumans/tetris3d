@@ -29,6 +29,7 @@ struct InputState {
 struct AppState {
   int windowWidth, windowHeight;
   InputState inputState;
+  bool gameStarted = false;
 };
 
 class App {
@@ -73,4 +74,5 @@ private:
 
   void _setupResources();
   void _setupUIElements();
+  void _updateUIElements();
 };
