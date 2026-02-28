@@ -8,7 +8,6 @@
 #include "glad/gl.h"
 #include "glm/fwd.hpp"
 #include "ui/ui_manager.hpp"
-#include <print>
 
 void App::render(double delta_time) {
 

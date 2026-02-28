@@ -4,7 +4,7 @@
 #include <memory>
 #include <unordered_map>
 
-enum class TextureType { NEXT, HOLD };
+enum class TextureType {};
 
 class Texture {
 private:
