@@ -1,8 +1,8 @@
 #include "ui_manager.hpp"
 
 #include "glad/gl.h"
+#include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
-#include <print>
 
 #include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
@@ -134,6 +134,13 @@ void UIManager::addTextElement(std::string name, UIHitbox box, std::string text,
                                float scale) {
   m_elements.push_back(std::make_unique<TextElement>(
       std::move(name), box, std::move(text), font, color, scale));
+}
+
+UIBase *UIManager::getElement(const std::string &name) {
+  auto it = std::ranges::find_if(
+      m_elements, [&name](const auto &el) { return el->name == name; });
+
+  return it != m_elements.end() ? it->get() : nullptr;
 }
 
 bool UIManager::handleClick(double mouseX, double mouseY) {

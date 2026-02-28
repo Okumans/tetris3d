@@ -68,15 +68,6 @@ void App::_setupResources() {
 }
 
 void App::_setupUIElements() {
-  // Texture &next_tex = TextureManager::getTexture(TextureType::NEXT);
-  // Texture &hold_tex = TextureManager::getTexture(TextureType::HOLD);
-
-  // m_uiManager.addStaticElement("next", {30, 70, 200, 80},
-  // next_tex.getTexID()); m_uiManager.addInteractiveElement("hold", {30, 600,
-  // 200, 80},
-  //                                   hold_tex.getTexID(),
-  //                                   [this]() { this->m_game.hold(); });
-
   // Virtual coordinates: Y is 0 to 40.
   m_uiManager.addTextElement("next_label", {3.0f, 4.0f, 0, 0}, "NEXT", m_font,
                              glm::vec4(1.0f), 0.125f);

@@ -89,6 +89,8 @@ public:
                       const BitmapFont &font, glm::vec4 color,
                       float scale = 1.0f);
 
+  UIBase *getElement(const std::string &name);
+
   void render(int window_width, int window_height);
   bool handleClick(double pos_x, double pos_y);
 

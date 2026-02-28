@@ -1,5 +1,4 @@
 #include "font.hpp"
-#include <iostream>
 #include <vector>
 
 // Simple 8x8 font bitmask for ASCII 32-126
