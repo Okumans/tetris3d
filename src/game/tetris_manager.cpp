@@ -21,8 +21,9 @@
 #include <vector>
 
 TetrisManager::TetrisManager()
-    : m_activePiece(_getRandomPiece(
-          {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2})) {
+    : m_activePiece(
+          Tetromino(_getRandomPieceType(0),
+                    {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2})) {
 
   _spawnPiece();
   _setupBuffers();
@@ -35,7 +36,7 @@ void TetrisManager::update(double delta_time) {
     return;
 
   double base_speed =
-      std::max(0.05, m_baseDropDelay - (m_level * m_delayDecreaseRate));
+      std::max(0.7, m_baseDropDelay - (m_level * m_delayDecreaseRate));
   double current_tick_delay =
       m_isSoftDropping ? (base_speed / 10.0) : base_speed;
 
@@ -242,6 +243,8 @@ void TetrisManager::_commit() {
     m_depth_map[cell_position.x][cell_position.z] = std::max(
         m_depth_map[cell_position.x][cell_position.z], cell_position.y);
   }
+  // Points for landing a piece
+  m_score += 10 * (m_level + 1);
 }
 
 void TetrisManager::_performCommitSequence() {
@@ -252,6 +255,22 @@ void TetrisManager::_performCommitSequence() {
   _checkLayerClears(m_pendingClearLayers);
 
   if (!m_pendingClearLayers.empty()) {
+    // Scoring for cleared layers
+    size_t lines = m_pendingClearLayers.size();
+    uint64_t base_points = 0;
+    if (lines == 1)
+      base_points = 300;
+    else if (lines == 2)
+      base_points = 800;
+    else if (lines == 3)
+      base_points = 1500;
+    else if (lines >= 4)
+      base_points = 2500;
+
+    m_score += base_points * (m_level + 1);
+    m_linesCleared += lines;
+    m_level = static_cast<uint8_t>(m_linesCleared / 10);
+
     m_state = GameState::CLEARING;
     m_collapseTimer = 0.0;
   } else {
@@ -344,7 +363,7 @@ bool TetrisManager::_spawnPiece() {
   glm::ivec3 startPos = {SPACE_WIDTH / 2, SPACE_HEIGHT - 1, SPACE_DEPTH / 2};
 
   while (m_piecesQueue.size() < PIECES_QUEUE_CAP) {
-    m_piecesQueue.push_back(_getRandomPiece(startPos));
+    m_piecesQueue.emplace_back(_getRandomPieceType(m_level), startPos);
   }
 
   m_activePiece = m_piecesQueue.front();
@@ -471,18 +490,29 @@ void TetrisManager::_applyGlobalRotation(glm::ivec3 axis, bool clockwise) {
     m_activePiece.rotateZ(axis.z > 0 ? clockwise : !clockwise);
 }
 
-Tetromino TetrisManager::_getRandomPiece(glm::ivec3 spawn_grid_pos) {
+BlockType TetrisManager::_getRandomPieceType(uint8_t level) {
   static std::mt19937 gen(std::random_device{}());
 
-  std::uniform_int_distribution<int> dist(
-      // static_cast<int>(BlockType::Debug5x5),
-      // static_cast<int>(BlockType::Debug5x5)
-      static_cast<int>(BlockType::Straight),
-      static_cast<int>(BlockType::Stair3D));
+  std::vector<BlockType> pool;
+  // Levels 0-2: Classic pieces
+  pool.insert(pool.end(),
+              {BlockType::Straight, BlockType::LeftSnake, BlockType::RightSnake,
+               BlockType::Square, BlockType::LeftStep, BlockType::Pyramid,
+               BlockType::RightStep});
 
-  BlockType random_type = static_cast<BlockType>(dist(gen));
+  if (level >= 3) {
+    // Levels 3-5: More advanced pieces
+    pool.insert(pool.end(),
+                {BlockType::Corner3D, BlockType::Pillar3D, BlockType::Stair3D});
+  }
 
-  return Tetromino(random_type, spawn_grid_pos);
+  if (level >= 6) {
+    // Levels 6+: Very hard cross piece
+    pool.push_back(BlockType::Cross3D);
+  }
+
+  std::uniform_int_distribution<size_t> dist(0, pool.size() - 1);
+  return pool[dist(gen)];
 }
 
 void TetrisManager::_renderGrid(const Shader &shader, const glm::mat4 &view,

@@ -118,6 +118,15 @@ const Character &BitmapFont::getCharacter(char c) const {
   return m_characters[(int)c];
 }
 
+float BitmapFont::getTextWidth(const std::string &text, float scale) const {
+  float width = 0;
+  for (char c : text) {
+    const Character &ch = getCharacter(c);
+    width += ch.advance * scale;
+  }
+  return width;
+}
+
 void BitmapFont::_generate_font_texture() {
   int texWidth = 128;
   int texHeight = 128;

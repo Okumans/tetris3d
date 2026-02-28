@@ -94,6 +94,9 @@ public:
   void render(int window_width, int window_height);
   bool handleClick(double pos_x, double pos_y);
 
+  float getVirtualWidth() const { return m_virtualWidth; }
+  float getVirtualHeight() const { return m_virtualHeight; }
+
   GLuint getVAO() const;
 
 private:

@@ -15,6 +15,40 @@ void App::render(double delta_time) {
   m_camera_controller.Update(delta_time);
   m_game.update(delta_time);
 
+  // Update UI text and positions
+  float vWidth = m_uiManager.getVirtualWidth();
+  float rightMargin = 2.0f;
+
+  if (auto level_label =
+          dynamic_cast<TextElement *>(m_uiManager.getElement("level_label"))) {
+    float w = m_font.getTextWidth(level_label->text, level_label->scale);
+    level_label->bounds.x = vWidth - rightMargin - w;
+    level_label->bounds.y = 1.5f;
+  }
+
+  if (auto level_value =
+          dynamic_cast<TextElement *>(m_uiManager.getElement("level_value"))) {
+    level_value->text = std::to_string(m_game.getLevel());
+    float w = m_font.getTextWidth(level_value->text, level_value->scale);
+    level_value->bounds.x = vWidth - rightMargin - w;
+    level_value->bounds.y = 3.5f;
+  }
+
+  if (auto score_label =
+          dynamic_cast<TextElement *>(m_uiManager.getElement("score_label"))) {
+    float w = m_font.getTextWidth(score_label->text, score_label->scale);
+    score_label->bounds.x = vWidth - rightMargin - w;
+    score_label->bounds.y = 6.0f;
+  }
+
+  if (auto score_value =
+          dynamic_cast<TextElement *>(m_uiManager.getElement("score_value"))) {
+    score_value->text = std::to_string(m_game.getScore());
+    float w = m_font.getTextWidth(score_value->text, score_value->scale);
+    score_value->bounds.x = vWidth - rightMargin - w;
+    score_value->bounds.y = 7.5f;
+  }
+
   m_game.render(delta_time, m_camera);
 
   m_uiManager.render(m_appState.windowWidth, m_appState.windowHeight);
@@ -78,6 +112,18 @@ void App::_setupUIElements() {
 
   m_uiManager.addTextElement("hold_label", {3.0f, 24.5f, 0, 0}, "HOLD", m_font,
                              glm::vec4(1.0f), 0.125f);
+
+  // Score UI
+  m_uiManager.addTextElement("score_label", {3.0f, 32.0f, 0, 0}, "SCORE",
+                             m_font, glm::vec4(1.0f, 0.8f, 0.0f, 1.0f), 0.1f);
+  m_uiManager.addTextElement("score_value", {3.0f, 34.0f, 0, 0}, "0", m_font,
+                             glm::vec4(1.0f), 0.15f);
+
+  // Level UI
+  m_uiManager.addTextElement("level_label", {3.0f, 36.5f, 0, 0}, "LEVEL",
+                             m_font, glm::vec4(0.0f, 0.8f, 1.0f, 1.0f), 0.1f);
+  m_uiManager.addTextElement("level_value", {3.0f, 38.5f, 0, 0}, "0", m_font,
+                             glm::vec4(1.0f), 0.15f);
 }
 
 void App::_handleProcessInput(double delta_time) {

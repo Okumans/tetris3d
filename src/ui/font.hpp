@@ -21,6 +21,7 @@ public:
   bool loadDefaultFont();
   GLuint getTexID() const { return texID; }
   const Character &getCharacter(char c) const;
+  float getTextWidth(const std::string &text, float scale) const;
 
 private:
   GLuint texID = 0;

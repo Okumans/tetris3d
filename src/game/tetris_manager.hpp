@@ -53,6 +53,7 @@ private:
   bool m_canHold = true;
   uint8_t m_level = 0;
   uint64_t m_score = 0;
+  uint64_t m_linesCleared = 0;
 
   std::vector<int> m_pendingClearLayers;
   std::array<std::array<int, SPACE_WIDTH>, SPACE_DEPTH> m_depth_map;
@@ -61,8 +62,8 @@ private:
   double m_lockTimer = 0.0;
   double m_collapseTimer = 0.0;
   int m_lockMoveResetCount = 0;
-  double m_baseDropDelay = 1.0;
-  double m_delayDecreaseRate = 0.1;
+  double m_baseDropDelay = 2.0;
+  double m_delayDecreaseRate = 0.13;
 
 public:
   // --- Lifecycle & Main Loop ---
@@ -86,6 +87,7 @@ public:
   const std::optional<Tetromino> &getHold() const;
   GameState getState() const { return m_state; }
   uint64_t getScore() const { return m_score; }
+  uint8_t getLevel() const { return m_level; }
   uint64_t getVAO() const { return m_vao; }
 
 private:
@@ -96,7 +98,7 @@ private:
   void _performCommitSequence();
   void _checkLayerClears(std::vector<int> &layers_cleared);
   void _collapseLayers(const std::vector<int> &layers_cleared);
-  static Tetromino _getRandomPiece(glm::ivec3 spawn_grid_pos);
+  static BlockType _getRandomPieceType(uint8_t level);
 
   // --- Movement & Collision ---
   bool _moveDown();
