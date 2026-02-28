@@ -15,6 +15,7 @@ https://github.com/user-attachments/assets/a31f58f4-0060-4e51-a127-0b489aa70b2b
 
 | Action                     | Key / Input                     |
 | :------------------------- | :------------------------------ |
+| **Start Game**             | `Any Key` or `Left Click`       |
 | **Move Piece**             | Arrow Keys (Relative to Camera) |
 | **Rotate Piece (Pitch)**   | `Shift` + `Up` / `Down`         |
 | **Rotate Piece (Roll)**    | `Shift` + `Left` / `Right`      |
@@ -26,7 +27,30 @@ https://github.com/user-attachments/assets/a31f58f4-0060-4e51-a127-0b489aa70b2b
 | **Camera View 2 (Top)**    | `2`                             |
 | **Camera View 3 (Iso)**    | `3`                             |
 | **Rotate Camera**          | `W`, `A`, `S`, `D`              |
-| **Interact UI (None yet)** | `Left Click`                    |
+| **Interact UI**            | `Left Click`                    |
+
+## Game Mechanics
+
+### Scoring System
+
+Points are awarded based on piece placement and clearing full 2D layers within the 3D grid. All points are multiplied by `(Current Level + 1)`.
+
+| Event              | Base Points |
+| :----------------- | :---------- |
+| **Piece Landed**   | 10          |
+| **1 Layer Clear**  | 300         |
+| **2 Layers Clear** | 800         |
+| **3 Layers Clear** | 1500        |
+| **4+ Layers Clear**| 2500        |
+
+### Leveling and Difficulty
+
+- **Level Progression:** The level increases every **10 lines** cleared.
+- **Speed:** The drop speed increases with each level, starting at a 2.0s delay and capping at 0.7s.
+- **Piece Variety:**
+  - **Level 0-2:** Standard 7 Tetrominoes.
+  - **Level 3-5:** Adds 3D pieces: `Corner3D`, `Pillar3D`, and `Stair3D`.
+  - **Level 6+:** Adds the highly challenging `Cross3D` piece.
 
 ## Build Instructions
 
