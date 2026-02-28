@@ -42,6 +42,7 @@ private:
 
   TetrisManager m_game;
   UIManager m_uiManager;
+  BitmapFont m_font;
 
   TetrisUIRenderer m_gameUIRenderer;
 

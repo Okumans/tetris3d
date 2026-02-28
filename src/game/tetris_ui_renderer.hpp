@@ -63,7 +63,7 @@ private:
     uiShader.setMat4("u_projection", proj);
 
     // Border color (e.g., a nice visible grey/white)
-    uiShader.setVec3("u_color", glm::vec3(0.6f, 0.6f, 0.6f));
+    uiShader.setVec4("u_color", glm::vec4(0.6f, 0.6f, 0.6f, 1.0f));
     uiShader.setBool("u_hasTexture", false);
 
     // Calculate the bottom-left origin of the whole box

@@ -17,7 +17,6 @@
 #include <optional>
 #include <print>
 #include <random>
-#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -385,19 +384,16 @@ glm::ivec3 TetrisManager::_calculateDropOffset() {
   int max_floor_y = std::numeric_limits<int>::lowest();
   int min_relative_y = std::numeric_limits<int>::max();
 
-  for (const auto &[offset, pos] : std::views::zip(
-           m_activePiece.getOffsets(), m_activePiece.getGlobalPositions())) {
-    max_floor_y = std::max(max_floor_y, offset.y);
+  for (glm::ivec3 pos : m_activePiece.getGlobalPositions()) {
+    max_floor_y = std::max(max_floor_y, m_depth_map[pos.x][pos.z]);
     min_relative_y = std::min(min_relative_y, pos.y);
   }
-
-  glm::ivec3 ghost_relative_pos(0);
 
   int start_y = max_floor_y - min_relative_y;
   int current_y = m_activePiece.getPosition().y;
 
   for (int y = start_y; y <= current_y; ++y) {
-    glm::ivec3 relative_pos(0, y - current_y, 0);
+    glm::ivec3 relative_pos(0, y, 0);
 
     if (_checkValidPiecePosition(m_activePiece.tryMoveRelative(relative_pos))) {
       return relative_pos;

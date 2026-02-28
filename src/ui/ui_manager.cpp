@@ -2,13 +2,14 @@
 
 #include "glad/gl.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include <print>
 
 #include "core/geometry.hpp"
 #include "core/shader_manager.hpp"
 #include "glm/fwd.hpp"
 
 // StaticElement
-StaticElement::StaticElement(std::string name, UIHitbox box, glm::vec3 color)
+StaticElement::StaticElement(std::string name, UIHitbox box, glm::vec4 color)
     : color(color), hasTexture(false) {
   this->name = std::move(name);
   this->bounds = box;
@@ -26,7 +27,7 @@ void StaticElement::draw(const Shader &shader) {
   model = glm::scale(model, glm::vec3(bounds.w, bounds.h, 1.0f));
 
   shader.setMat4("u_model", model);
-  shader.setVec3("u_color", color);
+  shader.setVec4("u_color", color);
   shader.setBool("u_hasTexture", hasTexture);
 
   if (hasTexture) {
@@ -44,9 +45,52 @@ InteractiveElement::InteractiveElement(std::string name, UIHitbox box,
     : StaticElement(std::move(name), box, tex_id), onClick(std::move(cb)) {}
 
 InteractiveElement::InteractiveElement(std::string name, UIHitbox box,
-                                       glm::vec3 color,
+                                       glm::vec4 color,
                                        std::function<void()> cb)
     : StaticElement(std::move(name), box, color), onClick(std::move(cb)) {}
+
+// TextElement
+TextElement::TextElement(std::string name, UIHitbox box, std::string text,
+                         const BitmapFont &font, glm::vec4 color, float scale)
+    : text(std::move(text)), font(font), color(color), scale(scale) {
+  this->name = std::move(name);
+  this->bounds = box;
+}
+
+void TextElement::draw(const Shader &shader) {
+  shader.setVec4("u_color", color);
+  shader.setBool("u_hasTexture", true);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, font.getTexID());
+  shader.setInt("u_icon", 0);
+
+  float currentX = bounds.x;
+  float currentY = bounds.y;
+
+  for (char c : text) {
+    const Character &ch = font.getCharacter(c);
+
+    float w = ch.size.x * scale;
+    float h = ch.size.y * scale;
+
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(currentX, currentY, 0.0f));
+    model = glm::scale(model, glm::vec3(w, h, 1.0f));
+
+    shader.setMat4("u_model", model);
+    shader.setVec2("u_uv_min", ch.uvMin);
+    shader.setVec2("u_uv_max", ch.uvMax);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    currentX += ch.advance * scale;
+  }
+
+  // Reset UVs for next elements
+  shader.setVec2("u_uv_min", glm::vec2(0.0f, 0.0f));
+  shader.setVec2("u_uv_max", glm::vec2(1.0f, 1.0f));
+}
 
 // UIManager
 UIManager::UIManager() { _setup_buffers(); }
@@ -57,7 +101,7 @@ UIManager::~UIManager() {
 }
 
 void UIManager::addStaticElement(std::string name, UIHitbox box,
-                                 glm::vec3 color) {
+                                 glm::vec4 color) {
   m_elements.push_back(
       std::make_unique<StaticElement>(std::move(name), box, color));
 }
@@ -77,7 +121,7 @@ void UIManager::addInteractiveElement(std::string name, UIHitbox box,
 }
 
 void UIManager::addInteractiveElement(std::string name, UIHitbox box,
-                                      glm::vec3 color,
+                                      glm::vec4 color,
                                       std::function<void()> cb) {
   auto element = std::make_unique<InteractiveElement>(std::move(name), box,
                                                       color, std::move(cb));
@@ -85,9 +129,20 @@ void UIManager::addInteractiveElement(std::string name, UIHitbox box,
   m_elements.push_back(std::move(element));
 }
 
+void UIManager::addTextElement(std::string name, UIHitbox box, std::string text,
+                               const BitmapFont &font, glm::vec4 color,
+                               float scale) {
+  m_elements.push_back(std::make_unique<TextElement>(
+      std::move(name), box, std::move(text), font, color, scale));
+}
+
 bool UIManager::handleClick(double mouseX, double mouseY) {
+  // Convert screen pixels to virtual coordinates
+  float vx = (float)mouseX * (m_virtualWidth / (float)m_lastWindowWidth);
+  float vy = (float)mouseY * (m_virtualHeight / (float)m_lastWindowHeight);
+
   for (auto it = m_interactives.rbegin(); it != m_interactives.rend(); ++it) {
-    if ((*it)->bounds.contains(mouseX, mouseY)) {
+    if ((*it)->bounds.contains(vx, vy)) {
       if ((*it)->onClick) {
         (*it)->onClick();
         return true;
@@ -101,8 +156,14 @@ void UIManager::render(int windowWidth, int windowHeight) {
   Shader &shader = ShaderManager::getShader(ShaderType::UI);
   shader.use();
 
+  m_lastWindowWidth = windowWidth;
+  m_lastWindowHeight = windowHeight;
+  m_virtualHeight = 40.0f;
+  float aspect = (float)windowWidth / (float)windowHeight;
+  m_virtualWidth = m_virtualHeight * aspect;
+
   glm::mat4 projection =
-      glm::ortho(0.0f, (float)windowWidth, (float)windowHeight, 0.0f);
+      glm::ortho(0.0f, m_virtualWidth, m_virtualHeight, 0.0f);
   shader.setMat4("u_projection", projection);
 
   glDisable(GL_DEPTH_TEST);
